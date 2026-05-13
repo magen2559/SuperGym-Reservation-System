@@ -78,7 +78,6 @@ if (isset($_SESSION['user_id'])) {
             font-size: 30px;
             color: #d6ff00 !important;
             text-decoration: none;
-            padding-left: 15px;
         }
         .form-box h2 {
             font-size: 28px;
@@ -126,6 +125,11 @@ if (isset($_SESSION['user_id'])) {
             outline: none;
             border-color: #d6ff00;
         }
+        .password-hint {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 5px;
+        }
         .btn-login {
             width: 100%;
             background-color: #d6ff00;
@@ -152,18 +156,6 @@ if (isset($_SESSION['user_id'])) {
         }
         .register-link a:hover {
             text-decoration: underline;
-        }
-        .demo-box {
-            margin-top: 32px;
-            padding: 16px;
-            background-color: #1a1a1a;
-            border-radius: 8px;
-            text-align: center;
-        }
-        .demo-box p {
-            font-size: 12px;
-            color: #6b7280;
-            margin: 4px 0;
         }
         @media (min-width: 768px) {
             .left-side {
@@ -222,6 +214,9 @@ if (isset($_SESSION['user_id'])) {
                 <div class="form-group">
                     <label>Password</label>
                     <input type="password" name="password" required>
+                    <div class="password-hint">
+                        Password must contain: Uppercase, Lowercase, Number, Special character, Min 8 characters
+                    </div>
                 </div>
                 <div class="text-right" style="text-align: right; margin-bottom: 16px;">
                     <a href="forgot_password.php" style="color: #d6ff00; text-decoration: none; font-size: 14px;">Forgot Password?</a>
@@ -231,13 +226,6 @@ if (isset($_SESSION['user_id'])) {
 
             <div class="register-link">
                 Don't have an account? <a href="register.php">Register Now</a>
-            </div>
-
-            <div class="demo-box">
-                <p>Demo Credentials:</p>
-                <p>member@supergym.com / password</p>
-                <p>trainer@supergym.com / password</p>
-                <p>staff@supergym.com / password</p>
             </div>
         </div>
     </div>

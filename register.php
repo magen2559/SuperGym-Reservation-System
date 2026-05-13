@@ -117,6 +117,24 @@ if (isset($_SESSION['user_id'])) {
             outline: none;
             border-color: #d6ff00;
         }
+        .password-requirements {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 5px;
+        }
+        .password-requirements ul {
+            margin-top: 5px;
+            padding-left: 20px;
+        }
+        .password-requirements li {
+            margin: 3px 0;
+        }
+        .requirement-met {
+            color: #86efac;
+        }
+        .requirement-unmet {
+            color: #fca5a5;
+        }
         .btn-register {
             width: 100%;
             background-color: #d6ff00;
@@ -156,6 +174,23 @@ if (isset($_SESSION['user_id'])) {
             }
         }
     </style>
+    <script>
+        function checkPasswordStrength() {
+            const password = document.getElementById('password').value;
+            
+            const hasUpper = /[A-Z]/.test(password);
+            const hasLower = /[a-z]/.test(password);
+            const hasNumber = /[0-9]/.test(password);
+            const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+            const isLongEnough = password.length >= 8;
+            
+            document.getElementById('req-upper').style.color = hasUpper ? '#86efac' : '#fca5a5';
+            document.getElementById('req-lower').style.color = hasLower ? '#86efac' : '#fca5a5';
+            document.getElementById('req-number').style.color = hasNumber ? '#86efac' : '#fca5a5';
+            document.getElementById('req-special').style.color = hasSpecial ? '#86efac' : '#fca5a5';
+            document.getElementById('req-length').style.color = isLongEnough ? '#86efac' : '#fca5a5';
+        }
+    </script>
 </head>
 <body>
 <div class="container">
@@ -198,7 +233,17 @@ if (isset($_SESSION['user_id'])) {
                 </div>
                 <div class="form-group">
                     <label>Password</label>
-                    <input type="password" name="password" required>
+                    <input type="password" name="password" id="password" onkeyup="checkPasswordStrength()" required>
+                    <div class="password-requirements">
+                        Password must contain:
+                        <ul>
+                            <li id="req-upper">At least 1 Uppercase letter (A-Z)</li>
+                            <li id="req-lower">At least 1 Lowercase letter (a-z)</li>
+                            <li id="req-number">At least 1 Number (0-9)</li>
+                            <li id="req-special">At least 1 Special character (!@#$%^&*)</li>
+                            <li id="req-length">At least 8 characters long</li>
+                        </ul>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Confirm Password</label>

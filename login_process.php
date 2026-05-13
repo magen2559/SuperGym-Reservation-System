@@ -7,10 +7,17 @@ if ($_SERVER['REQUEST_METHOD'] == "POST" && isset($_POST['login'])) {
     $email = trim($_POST['email']);
     $password = trim($_POST['password']);
     
-
     if (empty($email) || empty($password)) {
         echo "<script>
             alert('Please enter both email and password.');
+            window.location.href = 'login.php';
+        </script>";
+        exit();
+    }
+    
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        echo "<script>
+            alert('Please enter a valid email address.');
             window.location.href = 'login.php';
         </script>";
         exit();
@@ -28,17 +35,17 @@ if ($_SERVER['REQUEST_METHOD'] == "POST" && isset($_POST['login'])) {
         
         if ($user['role'] == 'member') {
             echo "<script>
-                alert('Login successful! Welcome " . $user['name'] . "');
+                alert('Login successful! Welcome " . addslashes($user['name']) . "');
                 window.location.href = 'member_dashboard.php';
             </script>";
         } elseif ($user['role'] == 'trainer') {
             echo "<script>
-                alert('Login successful! Welcome Coach " . $user['name'] . "');
+                alert('Login successful! Welcome Coach " . addslashes($user['name']) . "');
                 window.location.href = 'trainer_dashboard.php';
             </script>";
         } elseif ($user['role'] == 'staff') {
             echo "<script>
-                alert('Login successful! Welcome Staff " . $user['name'] . "');
+                alert('Login successful! Welcome Staff " . addslashes($user['name']) . "');
                 window.location.href = 'staff_dashboard.php';
             </script>";
         } else {
@@ -50,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] == "POST" && isset($_POST['login'])) {
         exit();
     } else {
         echo "<script>
-            alert('Invalid email or password. Please try again.');
+            alert('Invalid email or password. Please try again.\\n\\nIf you forgot your password, click \"Forgot Password\" to reset it.');
             window.location.href = 'login.php';
         </script>";
         exit();

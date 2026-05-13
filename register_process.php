@@ -17,9 +17,22 @@ if ($_SERVER['REQUEST_METHOD'] == "POST" && isset($_POST['register'])) {
         exit();
     }
     
-    if (strlen($password) < 6) {
+    if (strlen($password) < 8) {
         echo "<script>
-            alert('Password must be at least 6 characters long.');
+            alert('Password must be at least 8 characters long.');
+            window.location.href = 'register.php';
+        </script>";
+        exit();
+    }
+    
+    $has_upper = preg_match('/[A-Z]/', $password);
+    $has_lower = preg_match('/[a-z]/', $password);
+    $has_number = preg_match('/[0-9]/', $password);
+    $has_special = preg_match('/[!@#$%^&*(),.?":{}|<>]/', $password); 
+    
+    if (!$has_upper || !$has_lower || !$has_number || !$has_special) {
+        echo "<script>
+            alert('Password must contain at least ONE uppercase letter, ONE lowercase letter, ONE number, and ONE special character (!@#$%^&*).');
             window.location.href = 'register.php';
         </script>";
         exit();
@@ -50,9 +63,8 @@ if ($_SERVER['REQUEST_METHOD'] == "POST" && isset($_POST['register'])) {
         </script>";
         exit();
     }
-    
-    $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
+    $hashed_password = password_hash($password, PASSWORD_DEFAULT);
     $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, 'member')");
     
     if ($stmt->execute([$name, $email, $hashed_password])) {

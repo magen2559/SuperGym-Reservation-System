@@ -6,7 +6,6 @@ $user_id = $_SESSION['user_id'];
 $success = '';
 $error = '';
 
-// 处理更新个人信息
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_profile'])) {
     $name = trim($_POST['name']);
     $email = trim($_POST['email']);
@@ -26,35 +25,44 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_profile'])) {
     }
 }
 
-// 处理修改密码
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['change_password'])) {
     $old_password = $_POST['old_password'];
     $new_password = $_POST['new_password'];
     $confirm_password = $_POST['confirm_password'];
     
-    // 获取当前用户密码
     $stmt = $pdo->prepare("SELECT password FROM users WHERE id = ?");
     $stmt->execute([$user_id]);
     $user = $stmt->fetch();
     
     if (!password_verify($old_password, $user['password'])) {
         $error = "Old password is incorrect.";
-    } elseif (strlen($new_password) < 6) {
-        $error = "New password must be at least 6 characters.";
-    } elseif ($new_password !== $confirm_password) {
+    } 
+    elseif (strlen($new_password) < 8) {
+        $error = "New password must be at least 8 characters long.";
+    }
+    elseif ($new_password !== $confirm_password) {
         $error = "New passwords do not match.";
-    } else {
-        $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
-        $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
-        if ($stmt->execute([$hashed_password, $user_id])) {
-            $success = "Password changed successfully!";
+    }
+    else {
+        $has_upper = preg_match('/[A-Z]/', $new_password);
+        $has_lower = preg_match('/[a-z]/', $new_password);
+        $has_number = preg_match('/[0-9]/', $new_password);
+        $has_special = preg_match('/[!@#$%^&*(),.?":{}|<>]/', $new_password);
+        
+        if (!$has_upper || !$has_lower || !$has_number || !$has_special) {
+            $error = "Password must contain at least ONE uppercase letter, ONE lowercase letter, ONE number, and ONE special character (!@#$%^&*).";
         } else {
-            $error = "Failed to change password.";
+            $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
+            $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+            if ($stmt->execute([$hashed_password, $user_id])) {
+                $success = "Password changed successfully!";
+            } else {
+                $error = "Failed to change password.";
+            }
         }
     }
 }
 
-// 获取当前用户信息
 $stmt = $pdo->prepare("SELECT name, email FROM users WHERE id = ?");
 $stmt->execute([$user_id]);
 $user = $stmt->fetch();
@@ -75,6 +83,13 @@ $user = $stmt->fetch();
             background-color: #1a1a1a;
             border-bottom: 1px solid #333;
             padding: 6px;
+        }
+        .navbar .container {
+            max-width: 100%;
+            width: 100%;
+            padding-left: 0;
+            padding-right: 0;
+            margin: 0;
         }
         .navbar-brand,
         .navbar-brand:hover,
@@ -147,6 +162,27 @@ $user = $stmt->fetch();
         .form-label {
             color: #ddd;
         }
+        .password-requirements {
+            background-color: #2a2a2a;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        .password-requirements ul {
+            margin-top: 5px;
+            padding-left: 20px;
+            margin-bottom: 0;
+        }
+        .password-requirements li {
+            margin: 3px 0;
+        }
+        .requirement-met {
+            color: #86efac;
+        }
+        .requirement-unmet {
+            color: #fca5a5;
+        }
         footer {
             background-color: #0a0a0a;
             padding: 40px;
@@ -161,6 +197,40 @@ $user = $stmt->fetch();
             color: #aaa !important;
         }
     </style>
+    <script>
+        function checkPasswordStrength() {
+            const password = document.getElementById('new_password').value;
+            
+            const hasUpper = /[A-Z]/.test(password);
+            const hasLower = /[a-z]/.test(password);
+            const hasNumber = /[0-9]/.test(password);
+            const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+            const isLongEnough = password.length >= 8;
+            
+            document.getElementById('req-upper').innerHTML = hasUpper ? '✓ At least 1 Uppercase letter (A-Z)' : '✗ At least 1 Uppercase letter (A-Z)';
+            document.getElementById('req-lower').innerHTML = hasLower ? '✓ At least 1 Lowercase letter (a-z)' : '✗ At least 1 Lowercase letter (a-z)';
+            document.getElementById('req-number').innerHTML = hasNumber ? '✓ At least 1 Number (0-9)' : '✗ At least 1 Number (0-9)';
+            document.getElementById('req-special').innerHTML = hasSpecial ? '✓ At least 1 Special character (!@#$%^&*)' : '✗ At least 1 Special character (!@#$%^&*)';
+            document.getElementById('req-length').innerHTML = isLongEnough ? '✓ At least 8 characters long' : '✗ At least 8 characters long';
+            
+            document.getElementById('req-upper').style.color = hasUpper ? '#86efac' : '#fca5a5';
+            document.getElementById('req-lower').style.color = hasLower ? '#86efac' : '#fca5a5';
+            document.getElementById('req-number').style.color = hasNumber ? '#86efac' : '#fca5a5';
+            document.getElementById('req-special').style.color = hasSpecial ? '#86efac' : '#fca5a5';
+            document.getElementById('req-length').style.color = isLongEnough ? '#86efac' : '#fca5a5';
+        }
+        
+        function togglePasswordInfo() {
+            const passwordField = document.getElementById('new_password');
+            const infoBox = document.getElementById('passwordInfo');
+            if (passwordField.value.length > 0) {
+                infoBox.style.display = 'block';
+                checkPasswordStrength();
+            } else {
+                infoBox.style.display = 'none';
+            }
+        }
+    </script>
 </head>
 <body>
 
@@ -207,7 +277,6 @@ $user = $stmt->fetch();
                 <div class="alert alert-danger"><?php echo $error; ?></div>
             <?php endif; ?>
 
-            <!-- 个人信息 -->
             <div class="profile-card">
                 <h3 class="mb-4">Profile Information</h3>
                 <form method="POST">
@@ -223,7 +292,6 @@ $user = $stmt->fetch();
                 </form>
             </div>
 
-            <!-- 修改密码 -->
             <div class="profile-card">
                 <h3 class="mb-4">Change Password</h3>
                 <form method="POST">
@@ -233,8 +301,18 @@ $user = $stmt->fetch();
                     </div>
                     <div class="mb-3">
                         <label class="form-label">New Password</label>
-                        <input type="password" name="new_password" class="form-control" required>
-                        <small class="text-muted">Password must be at least 6 characters</small>
+                        <input type="password" name="new_password" id="new_password" class="form-control" 
+                               onfocus="togglePasswordInfo()" onkeyup="togglePasswordInfo()" required>
+                        <div id="passwordInfo" class="password-requirements" style="display: none;">
+                            <strong>Password must contain:</strong>
+                            <ul>
+                                <li id="req-upper">✗ At least 1 Uppercase letter (A-Z)</li>
+                                <li id="req-lower">✗ At least 1 Lowercase letter (a-z)</li>
+                                <li id="req-number">✗ At least 1 Number (0-9)</li>
+                                <li id="req-special">✗ At least 1 Special character (!@#$%^&*)</li>
+                                <li id="req-length">✗ At least 8 characters long</li>
+                            </ul>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Confirm New Password</label>
@@ -250,7 +328,7 @@ $user = $stmt->fetch();
 <footer>
     <div class="container">
         <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">SUPERGYM</div>
-        <p style="color: #666;">© 2024 SuperGym Booking System. All Rights Reserved.</p>
+        <p style="color: #666;">© SuperGym Booking System. All Rights Reserved.</p>
     </div>
 </footer>
 

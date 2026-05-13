@@ -242,7 +242,7 @@ session_start();
 <footer>
     <div class="container">
         <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">SUPERGYM</div>
-        <p style="color: #666;">© 2024 SuperGym Booking System. All Rights Reserved.</p>
+        <p style="color: #666;">© SuperGym Booking System. All Rights Reserved.</p>
     </div>
 </footer>
 

@@ -110,23 +110,26 @@ $bookings = $stmt->fetchAll();
             border-left: 1px solid #555;
         }
         .card {
-            background-color: #1a1a1a;
+            background-color: #EEF527; 
             border: 1px solid #333;
             border-radius: 15px;
             transition: transform 0.3s;
         }
         .card:hover {
             transform: translateY(-5px);
-            border-color: #d6ff00;
+            border-color: #fff;
         }
         .card h3 {
-            color: #fff;
+            color: #000; 
         }
         .card h4 {
-            color: #fff;
+            color: #000;  
         }
         .card p {
-            color: #aaa;
+            color: #333; 
+        }
+        .card.p-4 h3 {
+            color: #000;
         }
         .table-dark {
             background-color: #1a1a1a;
@@ -158,6 +161,17 @@ $bookings = $stmt->fetchAll();
         h1 {
             color: #fff;
         }
+        .card .text-muted {
+            color: #555 !important;
+        }
+        .card .btn-primary-custom {
+            background-color: #000;
+            color: #EEF527;
+        }
+        .card .btn-primary-custom:hover {
+            background-color: #333;
+            color: #EEF527;
+        }
     </style>
 </head>
 <body>
@@ -173,7 +187,7 @@ $bookings = $stmt->fetchAll();
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" href="member_dashboard.php">Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link" href="member_dashboard.php" style="color: #d6ff00 !important;">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="book_gym.php">Book Gym</a></li>
                 <li class="nav-item"><a class="nav-link" href="book_trainer.php">Book Trainer</a></li>
                 <li class="nav-item"><a class="nav-link" href="profile.php">My Account</a></li>
@@ -193,7 +207,6 @@ $bookings = $stmt->fetchAll();
         </div>
     </div>
 
-    <!-- Quick Actions -->
     <div class="row mb-5">
         <div class="col-md-4 mb-3">
             <div class="card p-4 text-center h-100">
@@ -221,7 +234,7 @@ $bookings = $stmt->fetchAll();
         </div>
     </div>
 
-    <!-- Recent Bookings -->
+    
     <div class="card p-4">
         <h3 class="mb-3">Recent Bookings</h3>
         <?php if(count($bookings) > 0): ?>
@@ -252,7 +265,7 @@ $bookings = $stmt->fetchAll();
 <footer>
     <div class="container">
         <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">SUPERGYM</div>
-        <p>© 2024 SuperGym Booking System. All Rights Reserved.</p>
+        <p>© SuperGym Booking System. All Rights Reserved.</p>
     </div>
 </footer>
 
