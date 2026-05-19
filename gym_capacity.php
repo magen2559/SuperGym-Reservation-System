@@ -2,55 +2,30 @@
 require_once 'include/session_check.php';
 require_once 'include/db.php';
 
-// 只允许 member 访问
-if ($_SESSION['user_role'] != 'member') {
+if ($_SESSION['user_role'] != 'staff') {
     header("Location: dashboard.php");
     exit();
 }
 
-$member_id = $_SESSION['user_id'];
-$success_message = '';
-$error_message = '';
+$success = '';
+$error = '';
 
-// 处理预约
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_session'])) {
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_capacity'])) {
     $session_id = $_POST['session_id'];
+    $new_capacity = (int)$_POST['max_capacity'];
     
-    // 检查是否已经预约了这个时段
-    $stmt = $pdo->prepare("
-        SELECT id FROM bookings 
-        WHERE member_id = ? AND gym_session_id = ? AND status NOT IN ('cancelled', 'rejected')
-    ");
-    $stmt->execute([$member_id, $session_id]);
-    if ($stmt->fetch()) {
-        $error_message = "You have already booked this session!";
+    if ($new_capacity < 1) {
+        $error = "Capacity must be at least 1.";
     } else {
-        // 检查容量
-        $stmt = $pdo->prepare("SELECT max_capacity, current_bookings FROM gym_sessions WHERE id = ?");
-        $stmt->execute([$session_id]);
-        $session = $stmt->fetch();
-        
-        if ($session && $session['current_bookings'] < $session['max_capacity']) {
-            // 创建预约
-            $stmt = $pdo->prepare("
-                INSERT INTO bookings (member_id, booking_type, gym_session_id, status) 
-                VALUES (?, 'gym', ?, 'pending')
-            ");
-            if ($stmt->execute([$member_id, $session_id])) {
-                // 更新预约人数
-                $stmt = $pdo->prepare("UPDATE gym_sessions SET current_bookings = current_bookings + 1 WHERE id = ?");
-                $stmt->execute([$session_id]);
-                $success_message = "Gym session booked successfully! Waiting for approval.";
-            } else {
-                $error_message = "Booking failed. Please try again.";
-            }
+        $stmt = $pdo->prepare("UPDATE gym_sessions SET max_capacity = ? WHERE id = ?");
+        if ($stmt->execute([$new_capacity, $session_id])) {
+            $success = "Gym capacity updated successfully!";
         } else {
-            $error_message = "Session is fully booked!";
+            $error = "Failed to update capacity.";
         }
     }
 }
 
-// 获取可预约的 Gym 时段
 $stmt = $pdo->prepare("
     SELECT gs.*, 
            (gs.max_capacity - gs.current_bookings) as available_spots
@@ -60,13 +35,22 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute();
 $sessions = $stmt->fetchAll();
+
+$stmt = $pdo->query("
+    SELECT 
+        SUM(max_capacity) as total_capacity,
+        SUM(current_bookings) as total_booked
+    FROM gym_sessions 
+    WHERE session_date >= CURDATE()
+");
+$stats = $stmt->fetch();
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SuperGym - Book Gym Session</title>
+    <title>SuperGym - Gym Capacity Management</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
@@ -128,15 +112,6 @@ $sessions = $stmt->fetchAll();
             background-color: #d6ff00;
             color: #000;
         }
-        .btn-disabled {
-            background-color: #444;
-            color: #aaa;
-            font-weight: bold;
-            padding: 8px 20px;
-            border-radius: 10px;
-            border: none;
-            cursor: not-allowed;
-        }
         .welcome-text {
             color: #ddd;
             font-size: 14px;
@@ -144,38 +119,55 @@ $sessions = $stmt->fetchAll();
             padding-left: 20px;
             border-left: 1px solid #555;
         }
-        .session-card {
+        .stat-card {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #d6ff00;
+        }
+        .capacity-card {
             background-color: #1a1a1a;
             border: 1px solid #333;
             border-radius: 15px;
             transition: transform 0.3s;
-            height: 100%;
         }
-        .session-card:hover {
-            transform: translateY(-5px);
+        .capacity-card:hover {
+            transform: translateY(-3px);
             border-color: #d6ff00;
         }
-        .available-spots {
-            font-size: 12px;
-            padding: 3px 10px;
-            border-radius: 20px;
+        .capacity-current {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        .capacity-max input {
+            width: 80px;
             display: inline-block;
-        }
-        .spots-low {
-            background-color: #fde047;
-            color: #000;
-        }
-        .spots-medium {
-            background-color: #22c55e;
-            color: #000;
-        }
-        .spots-high {
-            background-color: #d6ff00;
-            color: #000;
-        }
-        .spots-full {
-            background-color: #ef4444;
+            background-color: #2a2a2a;
+            border: 1px solid #333;
             color: #fff;
+            border-radius: 5px;
+            padding: 5px;
+            text-align: center;
+        }
+        .capacity-max input:focus {
+            outline: none;
+            border-color: #d6ff00;
+        }
+        .progress-bar-custom {
+            height: 8px;
+            border-radius: 4px;
+            background-color: #333;
+        }
+        .progress-fill {
+            height: 8px;
+            border-radius: 4px;
+            background-color: #d6ff00;
         }
         footer {
             background-color: #0a0a0a;
@@ -189,6 +181,12 @@ $sessions = $stmt->fetchAll();
         }
         .text-muted {
             color: #aaa !important;
+        }
+        .table-dark {
+            background-color: #1a1a1a;
+        }
+        .table-dark td, .table-dark th {
+            border-color: #333;
         }
     </style>
 </head>
@@ -205,11 +203,11 @@ $sessions = $stmt->fetchAll();
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" href="member_dashboard.php">Dashboard</a></li>
-                <li class="nav-item"><a class="nav-link" href="book_gym.php" style="color: #d6ff00 !important;">Book Gym</a></li>
-                <li class="nav-item"><a class="nav-link" href="book_trainer.php">Book Trainer</a></li>
-                <li class="nav-item"><a class="nav-link" href="my_bookings.php">My Bookings</a></li>
-                <li class="nav-item"><a class="nav-link" href="booking_history.php">Booking History</a></li>
+                <li class="nav-item"><a class="nav-link" href="staff_dashboard.php">Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link" href="manage_users.php">Users</a></li>
+                <li class="nav-item"><a class="nav-link" href="manage_trainers.php">Trainers</a></li>
+                <li class="nav-item"><a class="nav-link" href="gym_capacity.php" style="color: #d6ff00 !important;">Gym Capacity</a></li>
+                <li class="nav-item"><a class="nav-link" href="reports.php">Reports</a></li>
                 <li class="nav-item"><a class="nav-link" href="profile.php">My Account</a></li>
             </ul>
             <div class="ms-4">
@@ -222,63 +220,77 @@ $sessions = $stmt->fetchAll();
 <div class="container my-5">
     <div class="row mb-4">
         <div class="col">
-            <h1>Book Gym Session</h1>
-            <p class="text-muted">Select a time slot to book your gym session</p>
+            <h1>Gym Capacity Management</h1>
+            <p class="text-muted">View and update maximum capacity for each gym session</p>
         </div>
     </div>
 
-    <?php if($success_message): ?>
-        <div class="alert alert-success"><?php echo $success_message; ?></div>
+    <?php if($success): ?>
+        <div class="alert alert-success"><?php echo $success; ?></div>
     <?php endif; ?>
 
-    <?php if($error_message): ?>
-        <div class="alert alert-danger"><?php echo $error_message; ?></div>
+    <?php if($error): ?>
+        <div class="alert alert-danger"><?php echo $error; ?></div>
     <?php endif; ?>
 
-    <?php if(count($sessions) == 0): ?>
-        <div class="alert alert-warning">No available gym sessions at the moment. Please check back later.</div>
-    <?php else: ?>
-        <div class="row">
+    <div class="row mb-5">
+        <div class="col-md-6 mb-3">
+            <div class="stat-card">
+                <div class="stat-number"><?php echo $stats['total_capacity'] ?? 0; ?></div>
+                <div class="text-muted">Total Available Spots</div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="stat-card">
+                <div class="stat-number"><?php echo $stats['total_booked'] ?? 0; ?></div>
+                <div class="text-muted">Total Booked Spots</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <?php if(count($sessions) > 0): ?>
             <?php foreach($sessions as $session): ?>
                 <?php 
-                $available = $session['available_spots'];
-                if ($available <= 0) {
-                    $spots_class = 'spots-full';
-                    $spots_text = 'Fully Booked';
-                } elseif ($available <= 5) {
-                    $spots_class = 'spots-low';
-                    $spots_text = $available . ' spots left (Low)';
-                } elseif ($available <= 10) {
-                    $spots_class = 'spots-medium';
-                    $spots_text = $available . ' spots left';
-                } else {
-                    $spots_class = 'spots-high';
-                    $spots_text = $available . ' spots left';
-                }
+                $percentage = ($session['max_capacity'] > 0) ? ($session['current_bookings'] / $session['max_capacity']) * 100 : 0;
+                $percentage = round($percentage);
                 ?>
                 <div class="col-md-4 mb-4">
-                    <div class="session-card p-4">
+                    <div class="capacity-card p-4">
                         <div class="d-flex justify-content-between align-items-start mb-3">
                             <div>
                                 <h4><?php echo date('D, M j', strtotime($session['session_date'])); ?></h4>
                                 <p class="text-muted mb-0"><?php echo date('g:i A', strtotime($session['start_time'])); ?> - <?php echo date('g:i A', strtotime($session['end_time'])); ?></p>
                             </div>
-                            <span class="available-spots <?php echo $spots_class; ?>"><?php echo $spots_text; ?></span>
+                            <div class="capacity-current">
+                                <span class="text-warning"><?php echo $session['current_bookings']; ?></span>
+                                <span class="text-muted">/</span>
+                                <span class="text-muted"><?php echo $session['max_capacity']; ?></span>
+                            </div>
                         </div>
                         
-                        <form method="POST">
+                        <div class="progress-bar-custom mb-3">
+                            <div class="progress-fill" style="width: <?php echo $percentage; ?>%;"></div>
+                        </div>
+                        <p class="small text-muted text-end"><?php echo $percentage; ?>% full</p>
+                        
+                        <form method="POST" class="capacity-max">
                             <input type="hidden" name="session_id" value="<?php echo $session['id']; ?>">
-                            <?php if($available > 0): ?>
-                                <button type="submit" name="book_session" class="btn btn-primary-custom w-100 mt-2">Book Now</button>
-                            <?php else: ?>
-                                <button type="button" class="btn-disabled w-100 mt-2" disabled>Fully Booked</button>
-                            <?php endif; ?>
+                            <div class="input-group">
+                                <span class="input-group-text bg-dark text-muted border-secondary">Max Capacity</span>
+                                <input type="number" name="max_capacity" value="<?php echo $session['max_capacity']; ?>" min="1" max="100" class="form-control">
+                                <button type="submit" name="update_capacity" class="btn btn-primary-custom">Update</button>
+                            </div>
                         </form>
                     </div>
                 </div>
             <?php endforeach; ?>
-        </div>
-    <?php endif; ?>
+        <?php else: ?>
+            <div class="col">
+                <div class="alert alert-warning">No upcoming gym sessions found.</div>
+            </div>
+        <?php endif; ?>
+    </div>
 </div>
 
 <footer>

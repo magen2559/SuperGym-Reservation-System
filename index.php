@@ -153,10 +153,8 @@ session_start();
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" href="book_gym.php">Classes</a></li>
-                <li class="nav-item"><a class="nav-link" href="my_bookings.php">Schedule</a></li>
-                <li class="nav-item"><a class="nav-link" href="member_dashboard.php">Membership</a></li>
-                <li class="nav-item"><a class="nav-link" href="book_trainer.php">Trainers</a></li>
+                <li class="nav-item"><a class="nav-link" href="classes.php">Classes</a></li>
+                <li class="nav-item"><a class="nav-link" href="trainers.php">Trainers</a></li>
             </ul>
             <div class="ms-4">
                 <?php if(isset($_SESSION['user_id'])): ?>

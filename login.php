@@ -112,7 +112,10 @@ if (isset($_SESSION['user_id'])) {
             color: #9ca3af;
             margin-bottom: 8px;
         }
-        .form-group input {
+        .input-wrapper {
+            position: relative;
+        }
+        .input-wrapper input {
             width: 100%;
             background-color: #2a2a2a;
             border: 1px solid #3a3a3a;
@@ -121,9 +124,35 @@ if (isset($_SESSION['user_id'])) {
             color: #fff;
             font-size: 16px;
         }
-        .form-group input:focus {
+        .input-wrapper input:focus {
             outline: none;
             border-color: #d6ff00;
+        }
+        .password-wrapper {
+            position: relative;
+        }
+        .password-wrapper input {
+            width: 100%;
+            background-color: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            border-radius: 8px;
+            padding: 12px;
+            padding-right: 55px;
+            color: #fff;
+            font-size: 16px;
+        }
+        .password-wrapper input:focus {
+            outline: none;
+            border-color: #d6ff00;
+        }
+        .toggle-password {
+            position: absolute;
+            right: 12px;
+            top: 11px;
+            cursor: pointer;
+            color: #d6ff00;
+            font-size: 13px;
+            font-weight: bold;
         }
         .password-hint {
             font-size: 12px;
@@ -169,6 +198,18 @@ if (isset($_SESSION['user_id'])) {
             }
         }
     </style>
+    <script>
+        function togglePassword(inputId, element) {
+            const input = document.getElementById(inputId);
+            if (input.type === "password") {
+                input.type = "text";
+                element.textContent = "Hide";
+            } else {
+                input.type = "password";
+                element.textContent = "Show";
+            }
+        }
+    </script>
 </head>
 <body>
 <div class="container">
@@ -209,11 +250,16 @@ if (isset($_SESSION['user_id'])) {
             <form action="login_process.php" method="POST">
                 <div class="form-group">
                     <label>Email Address</label>
-                    <input type="email" name="email" required>
+                    <div class="input-wrapper">
+                        <input type="email" name="email" placeholder="your@email.com" required>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Password</label>
-                    <input type="password" name="password" required>
+                    <div class="password-wrapper">
+                        <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                        <span class="toggle-password" onclick="togglePassword('password', this)">Show</span>
+                    </div>
                     <div class="password-hint">
                         Password must contain: Uppercase, Lowercase, Number, Special character, Min 8 characters
                     </div>

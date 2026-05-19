@@ -7,43 +7,62 @@ if ($_SESSION['user_role'] != 'member') {
     exit();
 }
 
+$member_id = $_SESSION['user_id'];
 $success_message = '';
 $error_message = '';
 
-// 处理预约
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['slot_id'])) {
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_trainer'])) {
     $slot_id = $_POST['slot_id'];
-    $member_id = $_SESSION['user_id'];
     
-    // 检查是否已经预约了这个时段
-    $stmt = $pdo->prepare("SELECT id FROM bookings WHERE member_id = ? AND trainer_slot_id = ? AND status NOT IN ('cancelled', 'rejected')");
+    $stmt = $pdo->prepare("
+        SELECT id FROM bookings 
+        WHERE member_id = ? AND trainer_slot_id = ? AND status NOT IN ('cancelled', 'rejected')
+    ");
     $stmt->execute([$member_id, $slot_id]);
     if ($stmt->fetch()) {
         $error_message = "You have already booked this time slot!";
     } else {
-        // 创建预约
-        $stmt = $pdo->prepare("INSERT INTO bookings (member_id, booking_type, trainer_slot_id, status) VALUES (?, 'trainer', ?, 'pending')");
-        if ($stmt->execute([$member_id, $slot_id])) {
-            // 标记时段为已预约
-            $stmt = $pdo->prepare("UPDATE trainer_slots SET is_available = FALSE WHERE id = ?");
-            $stmt->execute([$slot_id]);
-            $success_message = "Trainer session booked successfully! Waiting for trainer approval.";
+        $stmt = $pdo->prepare("SELECT is_available FROM trainer_slots WHERE id = ?");
+        $stmt->execute([$slot_id]);
+        $slot = $stmt->fetch();
+        
+        if ($slot && $slot['is_available'] == 1) {
+            $stmt = $pdo->prepare("
+                INSERT INTO bookings (member_id, booking_type, trainer_slot_id, status) 
+                VALUES (?, 'trainer', ?, 'pending')
+            ");
+            if ($stmt->execute([$member_id, $slot_id])) {
+                $stmt = $pdo->prepare("UPDATE trainer_slots SET is_available = 0 WHERE id = ?");
+                $stmt->execute([$slot_id]);
+                $success_message = "Trainer session booked successfully! Waiting for trainer approval.";
+            } else {
+                $error_message = "Booking failed. Please try again.";
+            }
         } else {
-            $error_message = "Booking failed. Please try again.";
+            $error_message = "This time slot is no longer available.";
         }
     }
 }
 
-// 获取可预约的教练时段
 $stmt = $pdo->prepare("
-    SELECT ts.*, u.name as trainer_name, t.specialty
+    SELECT ts.*, 
+           u.name as trainer_name, 
+           t.specialty,
+           t.bio,
+           (SELECT COUNT(*) FROM bookings 
+            WHERE trainer_slot_id = ts.id 
+            AND member_id = ? 
+            AND status NOT IN ('cancelled', 'rejected')) as user_booked,
+           (SELECT COUNT(*) FROM bookings 
+            WHERE trainer_slot_id = ts.id 
+            AND status NOT IN ('cancelled', 'rejected')) as total_booked
     FROM trainer_slots ts
     JOIN trainers t ON t.id = ts.trainer_id
     JOIN users u ON u.id = t.user_id
-    WHERE ts.slot_date >= CURDATE() AND ts.is_available = TRUE
+    WHERE ts.slot_date >= CURDATE()
     ORDER BY ts.slot_date, ts.start_time
 ");
-$stmt->execute();
+$stmt->execute([$member_id]);
 $slots = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
@@ -100,6 +119,24 @@ $slots = $stmt->fetchAll();
             background-color: #c0e800;
             color: #000;
         }
+        .btn-disabled {
+            background-color: #6b7280;
+            color: #aaa;
+            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 10px;
+            border: none;
+            cursor: not-allowed;
+        }
+        .btn-booked {
+            background-color: #22c55e;
+            color: #fff;
+            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 10px;
+            border: none;
+            cursor: not-allowed;
+        }
         .btn-outline-custom {
             border: 2px solid #d6ff00;
             color: #d6ff00;
@@ -108,10 +145,6 @@ $slots = $stmt->fetchAll();
             border-radius: 10px;
             text-decoration: none;
             background-color: transparent;
-        }
-        .btn-outline-custom:hover {
-            background-color: #d6ff00;
-            color: #000;
         }
         .welcome-text {
             color: #ddd;
@@ -131,6 +164,15 @@ $slots = $stmt->fetchAll();
             transform: translateY(-5px);
             border-color: #d6ff00;
         }
+        .trainer-name {
+            color: #d6ff00;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        .specialty {
+            color: #aaa;
+            font-size: 0.85rem;
+        }
         footer {
             background-color: #0a0a0a;
             padding: 40px;
@@ -143,6 +185,10 @@ $slots = $stmt->fetchAll();
         }
         .text-muted {
             color: #aaa !important;
+        }
+        .slot-booked {
+            opacity: 0.7;
+            background-color: #1a1a1a;
         }
     </style>
 </head>
@@ -162,6 +208,8 @@ $slots = $stmt->fetchAll();
                 <li class="nav-item"><a class="nav-link" href="member_dashboard.php">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="book_gym.php">Book Gym</a></li>
                 <li class="nav-item"><a class="nav-link" href="book_trainer.php" style="color: #d6ff00 !important;">Book Trainer</a></li>
+                <li class="nav-item"><a class="nav-link" href="my_bookings.php">My Bookings</a></li>
+                <li class="nav-item"><a class="nav-link" href="booking_history.php">Booking History</a></li>
                 <li class="nav-item"><a class="nav-link" href="profile.php">My Account</a></li>
             </ul>
             <div class="ms-4">
@@ -175,7 +223,7 @@ $slots = $stmt->fetchAll();
     <div class="row mb-4">
         <div class="col">
             <h1>Book Personal Trainer</h1>
-            <p class="text-muted">Select a trainer and time slot</p>
+            <p class="text-muted">Select a trainer and time slot for personalized coaching</p>
         </div>
     </div>
 
@@ -188,24 +236,42 @@ $slots = $stmt->fetchAll();
     <?php endif; ?>
 
     <?php if(count($slots) == 0): ?>
-        <div class="alert alert-warning">No available trainer slots at the moment. Please check back later.</div>
+        <div class="alert alert-warning">No trainer slots available at the moment. Please check back later.</div>
     <?php else: ?>
         <div class="row">
             <?php foreach($slots as $slot): ?>
+                <?php
+                $is_user_booked = ($slot['user_booked'] > 0);
+                $is_full = ($slot['total_booked'] > 0 && $slot['is_available'] == 0);
+                ?>
                 <div class="col-md-4 mb-4">
-                    <div class="trainer-card p-4">
+                    <div class="trainer-card p-4 <?php echo $is_user_booked ? 'slot-booked' : ''; ?>">
                         <div class="mb-3">
-                            <h4 class="text-warning"><?php echo htmlspecialchars($slot['trainer_name']); ?></h4>
-                            <p class="text-muted mb-0"><?php echo htmlspecialchars($slot['specialty']); ?></p>
+                            <div class="trainer-name"><?php echo htmlspecialchars($slot['trainer_name']); ?></div>
+                            <div class="specialty"><?php echo htmlspecialchars($slot['specialty'] ?? 'Fitness Coach'); ?></div>
+                            <?php if(!empty($slot['bio'])): ?>
+                                <p class="small text-muted mt-2"><?php echo htmlspecialchars(substr($slot['bio'], 0, 80)); ?>...</p>
+                            <?php endif; ?>
                         </div>
                         <div class="border-top border-secondary pt-3 mt-2">
-                            <p class="mb-0"><?php echo date('D, M j', strtotime($slot['slot_date'])); ?></p>
-                            <p class="text-warning fw-bold mb-0"><?php echo date('g:i A', strtotime($slot['start_time'])); ?> - <?php echo date('g:i A', strtotime($slot['end_time'])); ?></p>
+                            <p class="mb-0">📅 <?php echo date('D, M j', strtotime($slot['slot_date'])); ?></p>
+                            <p class="text-warning fw-bold mb-0">⏰ <?php echo date('g:i A', strtotime($slot['start_time'])); ?> - <?php echo date('g:i A', strtotime($slot['end_time'])); ?></p>
                         </div>
-                        <form method="POST" class="mt-3">
-                            <input type="hidden" name="slot_id" value="<?php echo $slot['id']; ?>">
-                            <button type="submit" class="btn btn-primary-custom w-100">Book This Trainer</button>
-                        </form>
+                        
+                        <?php if($is_user_booked): ?>
+                            <div class="mt-3 text-center">
+                                <button class="btn-booked w-100" disabled>✓ Already Booked (Pending)</button>
+                            </div>
+                        <?php elseif($is_full): ?>
+                            <div class="mt-3 text-center">
+                                <button class="btn-disabled w-100" disabled>✗ Slot Unavailable</button>
+                            </div>
+                        <?php else: ?>
+                            <form method="POST" class="mt-3">
+                                <input type="hidden" name="slot_id" value="<?php echo $slot['id']; ?>">
+                                <button type="submit" name="book_trainer" class="btn btn-primary-custom w-100">Book This Trainer</button>
+                            </form>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>

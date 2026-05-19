@@ -117,6 +117,10 @@ if (isset($_SESSION['user_id'])) {
             outline: none;
             border-color: #d6ff00;
         }
+        .form-group input::placeholder {
+            color: #6b7280;
+            font-size: 14px;
+        }
         .password-requirements {
             font-size: 12px;
             color: #9ca3af;
@@ -125,6 +129,7 @@ if (isset($_SESSION['user_id'])) {
         .password-requirements ul {
             margin-top: 5px;
             padding-left: 20px;
+            list-style: none;
         }
         .password-requirements li {
             margin: 3px 0;
@@ -184,11 +189,51 @@ if (isset($_SESSION['user_id'])) {
             const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
             const isLongEnough = password.length >= 8;
             
-            document.getElementById('req-upper').style.color = hasUpper ? '#86efac' : '#fca5a5';
-            document.getElementById('req-lower').style.color = hasLower ? '#86efac' : '#fca5a5';
-            document.getElementById('req-number').style.color = hasNumber ? '#86efac' : '#fca5a5';
-            document.getElementById('req-special').style.color = hasSpecial ? '#86efac' : '#fca5a5';
-            document.getElementById('req-length').style.color = isLongEnough ? '#86efac' : '#fca5a5';
+            const upperEl = document.getElementById('req-upper');
+            const lowerEl = document.getElementById('req-lower');
+            const numberEl = document.getElementById('req-number');
+            const specialEl = document.getElementById('req-special');
+            const lengthEl = document.getElementById('req-length');
+            
+            if (hasUpper) {
+                upperEl.innerHTML = '✓ At least 1 Uppercase letter (A-Z)';
+                upperEl.className = 'requirement-met';
+            } else {
+                upperEl.innerHTML = '✗ At least 1 Uppercase letter (A-Z)';
+                upperEl.className = 'requirement-unmet';
+            }
+            
+            if (hasLower) {
+                lowerEl.innerHTML = '✓ At least 1 Lowercase letter (a-z)';
+                lowerEl.className = 'requirement-met';
+            } else {
+                lowerEl.innerHTML = '✗ At least 1 Lowercase letter (a-z)';
+                lowerEl.className = 'requirement-unmet';
+            }
+            
+            if (hasNumber) {
+                numberEl.innerHTML = '✓ At least 1 Number (0-9)';
+                numberEl.className = 'requirement-met';
+            } else {
+                numberEl.innerHTML = '✗ At least 1 Number (0-9)';
+                numberEl.className = 'requirement-unmet';
+            }
+            
+            if (hasSpecial) {
+                specialEl.innerHTML = '✓ At least 1 Special character (!@#$%^&*)';
+                specialEl.className = 'requirement-met';
+            } else {
+                specialEl.innerHTML = '✗ At least 1 Special character (!@#$%^&*)';
+                specialEl.className = 'requirement-unmet';
+            }
+            
+            if (isLongEnough) {
+                lengthEl.innerHTML = '✓ At least 8 characters long';
+                lengthEl.className = 'requirement-met';
+            } else {
+                lengthEl.innerHTML = '✗ At least 8 characters long';
+                lengthEl.className = 'requirement-unmet';
+            }
         }
     </script>
 </head>
@@ -225,29 +270,29 @@ if (isset($_SESSION['user_id'])) {
             <form action="register_process.php" method="POST">
                 <div class="form-group">
                     <label>Full Name</label>
-                    <input type="text" name="name" required>
+                    <input type="text" name="name" placeholder="Enter your full name" required>
                 </div>
                 <div class="form-group">
                     <label>Email Address</label>
-                    <input type="email" name="email" required>
+                    <input type="email" name="email" placeholder="your@email.com" required>
                 </div>
                 <div class="form-group">
                     <label>Password</label>
-                    <input type="password" name="password" id="password" onkeyup="checkPasswordStrength()" required>
+                    <input type="password" name="password" id="password" placeholder="Create a password" onkeyup="checkPasswordStrength()" required>
                     <div class="password-requirements">
                         Password must contain:
                         <ul>
-                            <li id="req-upper">At least 1 Uppercase letter (A-Z)</li>
-                            <li id="req-lower">At least 1 Lowercase letter (a-z)</li>
-                            <li id="req-number">At least 1 Number (0-9)</li>
-                            <li id="req-special">At least 1 Special character (!@#$%^&*)</li>
-                            <li id="req-length">At least 8 characters long</li>
+                            <li id="req-upper" class="requirement-unmet">✗ At least 1 Uppercase letter (A-Z)</li>
+                            <li id="req-lower" class="requirement-unmet">✗ At least 1 Lowercase letter (a-z)</li>
+                            <li id="req-number" class="requirement-unmet">✗ At least 1 Number (0-9)</li>
+                            <li id="req-special" class="requirement-unmet">✗ At least 1 Special character (!@#$%^&*)</li>
+                            <li id="req-length" class="requirement-unmet">✗ At least 8 characters long</li>
                         </ul>
                     </div>
                 </div>
                 <div class="form-group">
                     <label>Confirm Password</label>
-                    <input type="password" name="confirm_password" required>
+                    <input type="password" name="confirm_password" placeholder="Confirm your password" required>
                 </div>
                 <button type="submit" name="register" class="btn-register">REGISTER</button>
             </form>

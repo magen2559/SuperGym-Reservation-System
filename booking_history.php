@@ -28,19 +28,23 @@ $stmt = $pdo->prepare("
     LEFT JOIN trainer_slots ts ON b.trainer_slot_id = ts.id
     LEFT JOIN trainers t ON ts.trainer_id = t.id
     LEFT JOIN users u ON t.user_id = u.id
-    WHERE b.member_id = ?
+    WHERE b.member_id = ? 
+      AND (b.status IN ('cancelled', 'rejected', 'completed') 
+           OR (CASE 
+                   WHEN b.booking_type = 'gym' THEN gs.session_date
+                   WHEN b.booking_type = 'trainer' THEN ts.slot_date
+               END) < CURDATE())
     ORDER BY booking_date DESC
-    LIMIT 10
 ");
 $stmt->execute([$user_id]);
-$bookings = $stmt->fetchAll();
+$past_bookings = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SuperGym - Member Dashboard</title>
+    <title>SuperGym - Booking History</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
@@ -109,28 +113,6 @@ $bookings = $stmt->fetchAll();
             padding-left: 20px;
             border-left: 1px solid #555;
         }
-        .card {
-            background-color: #EEF527; 
-            border: 1px solid #333;
-            border-radius: 15px;
-            transition: transform 0.3s;
-        }
-        .card:hover {
-            transform: translateY(-5px);
-            border-color: #fff;
-        }
-        .card h3 {
-            color: #000; 
-        }
-        .card h4 {
-            color: #000;  
-        }
-        .card p {
-            color: #333; 
-        }
-        .card.p-4 h3 {
-            color: #000;
-        }
         .table-dark {
             background-color: #1a1a1a;
         }
@@ -145,6 +127,14 @@ $bookings = $stmt->fetchAll();
         .status-pending { color: #fde047; }
         .status-rejected { color: #fca5a5; }
         .status-cancelled { color: #9ca3af; }
+        .status-completed { color: #60a5fa; }
+        .history-card {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
         footer {
             background-color: #0a0a0a;
             padding: 40px;
@@ -152,25 +142,24 @@ $bookings = $stmt->fetchAll();
             border-top: 1px solid #222;
             margin-top: 50px;
         }
-        footer div {
-            color: #666;
+        h1 {
+            color: #fff;
         }
         .text-muted {
             color: #aaa !important;
         }
-        h1 {
-            color: #fff;
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #aaa;
         }
-        .card .text-muted {
-            color: #555 !important;
-        }
-        .card .btn-primary-custom {
-            background-color: #000;
-            color: #EEF527;
-        }
-        .card .btn-primary-custom:hover {
-            background-color: #333;
-            color: #EEF527;
+        .badge-custom {
+            background-color: #d6ff00;
+            color: #000;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-left: 10px;
         }
     </style>
 </head>
@@ -187,11 +176,11 @@ $bookings = $stmt->fetchAll();
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" href="member_dashboard.php" style="color: #d6ff00 !important;">Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link" href="member_dashboard.php">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="book_gym.php">Book Gym</a></li>
                 <li class="nav-item"><a class="nav-link" href="book_trainer.php">Book Trainer</a></li>
                 <li class="nav-item"><a class="nav-link" href="my_bookings.php">My Bookings</a></li>
-                <li class="nav-item"><a class="nav-link" href="booking_history.php">Booking History</a></li>
+                <li class="nav-item"><a class="nav-link" href="booking_history.php" style="color: #d6ff00 !important;">Booking History</a></li>
                 <li class="nav-item"><a class="nav-link" href="profile.php">My Account</a></li>
             </ul>
             <div class="ms-4">
@@ -204,70 +193,46 @@ $bookings = $stmt->fetchAll();
 <div class="container my-5">
     <div class="row mb-4">
         <div class="col">
-            <h1>Member Dashboard</h1>
-            <p class="text-muted">Manage your gym sessions and trainer bookings</p>
+            <h1>Booking History</h1>
+            <p class="text-muted">View your past gym sessions and trainer appointments</p>
         </div>
     </div>
 
-    <div class="row mb-5">
-        <div class="col-md-3 mb-3">
-            <div class="card p-4 text-center h-100">
-                <div style="font-size: 3rem;">🏋️</div>
-                <h4 class="mt-2">Book Gym Session</h4>
-                <p class="text-muted">Reserve your gym time</p>
-                <a href="book_gym.php" class="btn btn-primary-custom mt-auto">Book Now</a>
-            </div>
-        </div>
-        <div class="col-md-3 mb-3">
-            <div class="card p-4 text-center h-100">
-                <div style="font-size: 3rem;">👨‍🏫</div>
-                <h4 class="mt-2">Book Personal Trainer</h4>
-                <p class="text-muted">Train with professionals</p>
-                <a href="book_trainer.php" class="btn btn-primary-custom mt-auto">Book Now</a>
-            </div>
-        </div>
-        <div class="col-md-3 mb-3">
-            <div class="card p-4 text-center h-100">
-                <div style="font-size: 3rem;">📅</div>
-                <h4 class="mt-2">My Bookings</h4>
-                <p class="text-muted">View your schedule</p>
-                <a href="my_bookings.php" class="btn btn-primary-custom mt-auto">View All</a>
-            </div>
-        </div>
-        <div class="col-md-3 mb-3">
-            <div class="card p-4 text-center h-100">
-                <div style="font-size: 3rem;">📋</div>
-                <h4 class="mt-2">Booking History</h4>
-                <p class="text-muted">View your booking history</p>
-                <a href="booking_history.php" class="btn btn-primary-custom mt-auto">View History</a>
-            </div>
-        </div>
-    </div>
-
-    
-    <div class="card p-4">
-        <h3 class="mb-3">Recent Bookings</h3>
-        <?php if(count($bookings) > 0): ?>
+    <div class="history-card">
+        <?php if(count($past_bookings) > 0): ?>
             <div class="table-responsive">
                 <table class="table table-dark">
                     <thead>
-                        <tr><th>Type</th><th>Date</th><th>Time</th><th>Trainer</th><th>Status</th></tr>
+                        <tr>
+                            <th>Type</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Trainer</th>
+                            <th>Status</th>
+                        </tr>
                     </thead>
                     <tbody>
-                        <?php foreach($bookings as $booking): ?>
+                        <?php foreach($past_bookings as $booking): ?>
                             <tr>
-                                <td data-label="Type"><?php echo $booking['booking_type'] == 'gym' ? '🏋️ Gym' : '👨‍🏫 Trainer'; ?></td>
-                                <td data-label="Date"><?php echo htmlspecialchars($booking['booking_date'] ?? 'N/A'); ?></td>
-                                <td data-label="Time"><?php echo htmlspecialchars($booking['booking_time'] ?? 'N/A'); ?></td>
-                                <td data-label="Trainer"><?php echo htmlspecialchars($booking['trainer_name'] ?? '-'); ?></td>
-                                <td data-label="Status"><span class="status-<?php echo $booking['status']; ?>"><?php echo ucfirst($booking['status']); ?></span></td>
+                                <td><?php echo $booking['booking_type'] == 'gym' ? '🏋️ Gym Session' : '👨‍🏫 Personal Trainer'; ?></td>
+                                <td><?php echo htmlspecialchars($booking['booking_date'] ?? 'N/A'); ?></td>
+                                <td><?php echo htmlspecialchars($booking['booking_time'] ?? 'N/A'); ?></td>
+                                <td><?php echo htmlspecialchars($booking['trainer_name'] ?? '-'); ?></td>
+                                <td>
+                                    <span class="status-<?php echo $booking['status']; ?>">
+                                        <?php echo ucfirst($booking['status']); ?>
+                                    </span>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
         <?php else: ?>
-            <p class="text-muted">No bookings yet. Book your first session!</p>
+            <div class="empty-state">
+                <p>No booking history found.</p>
+                <a href="book_gym.php" class="btn btn-primary-custom mt-2">Book Your First Session</a>
+            </div>
         <?php endif; ?>
     </div>
 </div>

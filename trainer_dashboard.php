@@ -106,18 +106,30 @@ $approved_bookings = $stmt->fetchAll();
             border-left: 1px solid #555;
         }
 
-        .btn-primary-custom {
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .btn-schedule {
             background-color: #d6ff00;
             color: #000;
             font-weight: bold;
             border: none;
-            padding: 8px 20px;
+            padding: 12px 30px;
             border-radius: 10px;
+            font-size: 18px;
+            transition: all 0.3s ease;
+            text-decoration: none !important;
+            display: inline-block;
         }
 
-        .btn-primary-custom:hover {
+        .btn-schedule:hover {
             background-color: #c0e800;
             color: #000;
+            transform: scale(1.02);
+            text-decoration: none !important;
         }
 
         .btn-outline-custom {
@@ -133,97 +145,120 @@ $approved_bookings = $stmt->fetchAll();
         .btn-outline-custom:hover {
             background-color: #d6ff00;
             color: #000;
+            text-decoration: none;
         }
 
         .btn-approve {
             background-color: #22c55e;
             color: #fff;
             border: none;
-            padding: 5px 15px;
+            padding: 7px 15px;
             border-radius: 5px;
-            margin-right: 5px;
+            margin-right: 3px;
+            font-weight: bold;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .btn-approve:hover {
+            background-color: #16a34a;
+            color: #fff;
         }
 
         .btn-reject {
             background-color: #ef4444;
             color: #fff;
             border: none;
-            padding: 5px 15px;
+            padding: 7px 15px;
             border-radius: 5px;
+            font-weight: bold;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .btn-reject:hover {
+            background-color: #dc2626;
+            color: #fff;
         }
 
         .badge-pending {
-            background-color: #000;
-            color: #EEF527;
+            background-color: #f59e0b;
+            color: #000;
             padding: 5px 12px;
             border-radius: 20px;
             font-size: 14px;
             font-weight: bold;
+            display: inline-block;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-approved {
+            background-color: #22c55e;
+            color: #fff;
         }
 
         .table-dark {
             background-color: #1a1a1a;
+            width: 100%;
+            table-layout: fixed;
         }
 
         .table-dark td,
         .table-dark th {
+            text-align: center;
+            vertical-align: middle;
             border-color: #333;
             color: #ddd;
+            padding: 12px 8px;
         }
 
         .table-dark th {
             color: #d6ff00;
         }
 
+        .table-dark th:nth-child(1),
+        .table-dark td:nth-child(1) { width: 25%; } 
+        .table-dark th:nth-child(2),
+        .table-dark td:nth-child(2) { width: 25%; } 
+        
+        .table-dark th:nth-child(3),
+        .table-dark td:nth-child(3) { width: 30%; }
+        
+        .table-dark th:nth-child(4),
+        .table-dark td:nth-child(4) { width: 20%; }
+
         .text-muted {
             color: #aaa !important;
         }
 
-        h1,
-        h3,
-        h4 {
+        h1, h3, h4 {
             color: #fff;
         }
 
-        .card {
-            background-color: #EEF527;
+        .content-card {
+            background-color: #1a1a1a;
             border: 1px solid #333;
             border-radius: 15px;
-            transition: transform 0.3s;
+            padding: 25px;
             margin-bottom: 30px;
         }
 
-        .card:hover {
-            transform: translateY(-5px);
-            border-color: #fff;
+        .content-card h3 {
+            color: #d6ff00;
+            margin-bottom: 20px;
         }
 
-        .card h3, 
-        .card h4 {
-            color: #000;
-        }
-
-        .card p {
-            color: #333;
-        }
-
-        .card .text-muted {
-            color: #555 !important;
-        }
-
-        .card .btn-primary-custom {
-            background-color: #000;
-            color: #EEF527;
-        }
-
-        .card .btn-primary-custom:hover {
-            background-color: #333;
-            color: #EEF527;
-        }
-
-        .card-header {
-            background-color: #222;
-            border-bottom: 1px solid #333;
+        .quick-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 20px;
         }
 
         footer {
@@ -237,6 +272,35 @@ $approved_bookings = $stmt->fetchAll();
         footer p {
             color: #666;
         }
+
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 0 15px;
+            }
+            
+            .quick-actions {
+                justify-content: center;
+                margin-top: 15px;
+            }
+            
+            .table-responsive {
+                font-size: 12px;
+            }
+            
+            .table-dark {
+                table-layout: auto;
+            }
+            
+            .btn-approve, .btn-reject {
+                padding: 3px 8px;
+                font-size: 10px;
+            }
+            
+            .btn-schedule {
+                padding: 8px 20px;
+                font-size: 14px;
+            }
+        }
     </style>
 </head>
 
@@ -244,10 +308,8 @@ $approved_bookings = $stmt->fetchAll();
 
 <nav class="navbar navbar-expand-lg sticky-top">
     <div class="container">
-
         <div class="d-flex align-items-center">
             <a class="navbar-brand" href="index.php">SUPERGYM</a>
-
             <span class="welcome-text">
                 Welcome, Coach <?php echo htmlspecialchars($_SESSION['user_name']); ?>
             </span>
@@ -258,7 +320,6 @@ $approved_bookings = $stmt->fetchAll();
         </button>
 
         <div class="collapse navbar-collapse" id="navbarNav">
-
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item"><a class="nav-link" href="trainer_dashboard.php" style="color: #d6ff00 !important;">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="trainer_schedule.php">My Schedule</a></li>
@@ -266,100 +327,35 @@ $approved_bookings = $stmt->fetchAll();
             </ul>
 
             <div class="ms-4">
-                <a href="logout.php" class="btn btn-outline-custom">
-                    Logout
-                </a>
+                <a href="logout.php" class="btn btn-outline-custom">Logout</a>
             </div>
-
         </div>
     </div>
 </nav>
 
-<div class="container my-5">
-
-    <div class="row mb-4">
-        <div class="col">
+<div class="main-container">
+    
+    <div class="d-flex flex-wrap justify-content-between align-items-center my-4">
+        <div>
             <h1>Trainer Dashboard</h1>
-            <p class="text-muted">
-                Manage your booking requests and training sessions
-            </p>
+            <p class="text-muted">Manage your booking requests and training sessions</p>
+        </div>
+        <div class="quick-actions">
+            <a href="trainer_schedule.php" class="btn-schedule">
+                📅 Go to My Schedule
+            </a>
         </div>
     </div>
 
-    <div class="row mb-5">
-
-        <div class="col-md-4 mb-3">
-            <div class="card p-4 text-center h-100">
-
-                <div style="font-size: 3rem;">📋</div>
-
-                <h4 class="mt-2">Pending Requests</h4>
-
-                <p class="text-muted">
-                    Approve or reject bookings
-                </p>
-
-                <a href="#pending" class="btn btn-primary-custom mt-auto">
-                    View Requests
-                </a>
-
-            </div>
-        </div>
-
-        <div class="col-md-4 mb-3">
-            <div class="card p-4 text-center h-100">
-
-                <div style="font-size: 3rem;">📅</div>
-
-                <h4 class="mt-2">My Schedule</h4>
-
-                <p class="text-muted">
-                    View upcoming sessions
-                </p>
-
-                <a href="trainer_schedule.php" class="btn btn-primary-custom mt-auto">
-                    View Schedule
-                </a>
-
-            </div>
-        </div>
-
-        <div class="col-md-4 mb-3">
-            <div class="card p-4 text-center h-100">
-
-                <div style="font-size: 3rem;">👤</div>
-
-                <h4 class="mt-2">My Account</h4>
-
-                <p class="text-muted">
-                    Manage your trainer profile
-                </p>
-
-                <a href="profile.php" class="btn btn-primary-custom mt-auto">
-                    Edit Profile
-                </a>
-
-            </div>
-        </div>
-
-    </div>
-
-    <div class="card p-4" id="pending">
-
-        <h3 class="mb-3">
+    <div class="content-card" id="pending">
+        <h3>
             📋 Pending Requests
-
-            <span class="badge-pending ms-2">
-                <?php echo count($pending_bookings); ?>
-            </span>
+            <span class="badge-pending ms-2"><?php echo count($pending_bookings); ?></span>
         </h3>
 
         <?php if (count($pending_bookings) > 0): ?>
-
             <div class="table-responsive">
-
                 <table class="table table-dark">
-
                     <thead>
                         <tr>
                             <th>Member</th>
@@ -368,87 +364,43 @@ $approved_bookings = $stmt->fetchAll();
                             <th>Action</th>
                         </tr>
                     </thead>
-
                     <tbody>
-
                         <?php foreach ($pending_bookings as $booking): ?>
-
                             <tr>
-
+                                <td><?php echo htmlspecialchars($booking['member_name']); ?></td>
+                                <td><?php echo date('D, M j', strtotime($booking['slot_date'])); ?></td>
                                 <td>
-                                    <?php echo htmlspecialchars($booking['member_name']); ?>
-                                </td>
-
-                                <td>
-                                    <?php echo date('D, M j', strtotime($booking['slot_date'])); ?>
-                                </td>
-
-                                <td>
-                                    <?php echo date('g:i A', strtotime($booking['start_time'])); ?>
-                                    -
+                                    <?php echo date('g:i A', strtotime($booking['start_time'])); ?> - 
                                     <?php echo date('g:i A', strtotime($booking['end_time'])); ?>
                                 </td>
-
                                 <td>
-
                                     <form action="update_booking_status.php" method="POST" style="display:inline;">
-
                                         <input type="hidden" name="booking_id" value="<?php echo $booking['id']; ?>">
-
                                         <input type="hidden" name="action" value="approve">
-
-                                        <button type="submit" class="btn-approve">
-                                            Accept
-                                        </button>
-
+                                        <button type="submit" class="btn-approve">✓ Accept</button>
                                     </form>
-
                                     <form action="update_booking_status.php" method="POST" style="display:inline;">
-
                                         <input type="hidden" name="booking_id" value="<?php echo $booking['id']; ?>">
-
                                         <input type="hidden" name="action" value="reject">
-
-                                        <button type="submit" class="btn-reject">
-                                            Reject
-                                        </button>
-
+                                        <button type="submit" class="btn-reject">✗ Reject</button>
                                     </form>
-
                                 </td>
-
                             </tr>
-
                         <?php endforeach; ?>
-
                     </tbody>
-
                 </table>
-
             </div>
-
         <?php else: ?>
-
-            <p class="text-muted">
-                No pending booking requests.
-            </p>
-
+            <p class="text-muted">No pending booking requests. 🎉</p>
         <?php endif; ?>
-
     </div>
 
-    <div class="card p-4">
-
-        <h3 class="mb-3">
-            ✅ Upcoming Sessions
-        </h3>
+    <div class="content-card">
+        <h3>✅ Upcoming Sessions</h3>
 
         <?php if (count($approved_bookings) > 0): ?>
-
             <div class="table-responsive">
-
                 <table class="table table-dark">
-
                     <thead>
                         <tr>
                             <th>Member</th>
@@ -457,69 +409,36 @@ $approved_bookings = $stmt->fetchAll();
                             <th>Status</th>
                         </tr>
                     </thead>
-
                     <tbody>
-
                         <?php foreach ($approved_bookings as $booking): ?>
-
                             <tr>
-
+                                <td><?php echo htmlspecialchars($booking['member_name']); ?></td>
+                                <td><?php echo date('D, M j', strtotime($booking['slot_date'])); ?></td>
                                 <td>
-                                    <?php echo htmlspecialchars($booking['member_name']); ?>
-                                </td>
-
-                                <td>
-                                    <?php echo date('D, M j', strtotime($booking['slot_date'])); ?>
-                                </td>
-
-                                <td>
-                                    <?php echo date('g:i A', strtotime($booking['start_time'])); ?>
-                                    -
+                                    <?php echo date('g:i A', strtotime($booking['start_time'])); ?> - 
                                     <?php echo date('g:i A', strtotime($booking['end_time'])); ?>
                                 </td>
-
                                 <td>
-                                    <span class="text-success">
-                                        Approved
-                                    </span>
+                                    <span class="status-badge status-approved">✓ Approved</span>
                                 </td>
-
                             </tr>
-
                         <?php endforeach; ?>
-
                     </tbody>
-
                 </table>
-
             </div>
-
         <?php else: ?>
-
-            <p class="text-muted">
-                No approved sessions yet.
-            </p>
-
+            <p class="text-muted">No approved sessions yet.</p>
         <?php endif; ?>
-
     </div>
-
 </div>
 
 <footer>
-
     <div class="container">
-
         <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">
             SUPERGYM
         </div>
-
-        <p>
-            © SuperGym Booking System. All Rights Reserved.
-        </p>
-
+        <p>© SuperGym Booking System. All Rights Reserved.</p>
     </div>
-
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

@@ -1,56 +1,6 @@
 <?php
-require_once 'include/session_check.php';
 require_once 'include/db.php';
 
-// 只允许 member 访问
-if ($_SESSION['user_role'] != 'member') {
-    header("Location: dashboard.php");
-    exit();
-}
-
-$member_id = $_SESSION['user_id'];
-$success_message = '';
-$error_message = '';
-
-// 处理预约
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_session'])) {
-    $session_id = $_POST['session_id'];
-    
-    // 检查是否已经预约了这个时段
-    $stmt = $pdo->prepare("
-        SELECT id FROM bookings 
-        WHERE member_id = ? AND gym_session_id = ? AND status NOT IN ('cancelled', 'rejected')
-    ");
-    $stmt->execute([$member_id, $session_id]);
-    if ($stmt->fetch()) {
-        $error_message = "You have already booked this session!";
-    } else {
-        // 检查容量
-        $stmt = $pdo->prepare("SELECT max_capacity, current_bookings FROM gym_sessions WHERE id = ?");
-        $stmt->execute([$session_id]);
-        $session = $stmt->fetch();
-        
-        if ($session && $session['current_bookings'] < $session['max_capacity']) {
-            // 创建预约
-            $stmt = $pdo->prepare("
-                INSERT INTO bookings (member_id, booking_type, gym_session_id, status) 
-                VALUES (?, 'gym', ?, 'pending')
-            ");
-            if ($stmt->execute([$member_id, $session_id])) {
-                // 更新预约人数
-                $stmt = $pdo->prepare("UPDATE gym_sessions SET current_bookings = current_bookings + 1 WHERE id = ?");
-                $stmt->execute([$session_id]);
-                $success_message = "Gym session booked successfully! Waiting for approval.";
-            } else {
-                $error_message = "Booking failed. Please try again.";
-            }
-        } else {
-            $error_message = "Session is fully booked!";
-        }
-    }
-}
-
-// 获取可预约的 Gym 时段
 $stmt = $pdo->prepare("
     SELECT gs.*, 
            (gs.max_capacity - gs.current_bookings) as available_spots
@@ -66,7 +16,7 @@ $sessions = $stmt->fetchAll();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SuperGym - Book Gym Session</title>
+    <title>SuperGym - Classes & Schedules</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
@@ -96,7 +46,7 @@ $sessions = $stmt->fetchAll();
             padding-left: 15px;
         }
         .nav-link {
-            color: #fff !important;
+            color: #aaa;
             font-weight: bold;
             text-transform: uppercase;
         }
@@ -137,21 +87,14 @@ $sessions = $stmt->fetchAll();
             border: none;
             cursor: not-allowed;
         }
-        .welcome-text {
-            color: #ddd;
-            font-size: 14px;
-            margin-left: 20px;
-            padding-left: 20px;
-            border-left: 1px solid #555;
-        }
-        .session-card {
+        .class-card {
             background-color: #1a1a1a;
             border: 1px solid #333;
             border-radius: 15px;
             transition: transform 0.3s;
             height: 100%;
         }
-        .session-card:hover {
+        .class-card:hover {
             transform: translateY(-5px);
             border-color: #d6ff00;
         }
@@ -161,21 +104,17 @@ $sessions = $stmt->fetchAll();
             border-radius: 20px;
             display: inline-block;
         }
-        .spots-low {
-            background-color: #fde047;
-            color: #000;
-        }
-        .spots-medium {
-            background-color: #22c55e;
-            color: #000;
-        }
-        .spots-high {
-            background-color: #d6ff00;
-            color: #000;
-        }
-        .spots-full {
-            background-color: #ef4444;
-            color: #fff;
+        .spots-low { background-color: #fde047; color: #000; }
+        .spots-medium { background-color: #22c55e; color: #000; }
+        .spots-high { background-color: #d6ff00; color: #000; }
+        .spots-full { background-color: #ef4444; color: #fff; }
+        .hero-small {
+            background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=2070&auto=format');
+            background-size: cover;
+            background-position: center;
+            padding: 60px 0;
+            text-align: center;
+            margin-bottom: 40px;
         }
         footer {
             background-color: #0a0a0a;
@@ -196,47 +135,38 @@ $sessions = $stmt->fetchAll();
 
 <nav class="navbar navbar-expand-lg sticky-top">
     <div class="container">
-        <div class="d-flex align-items-center">
-            <a class="navbar-brand" href="index.php">SUPERGYM</a>
-            <span class="welcome-text">Welcome, <?php echo htmlspecialchars($_SESSION['user_name']); ?></span>
-        </div>
+        <a class="navbar-brand" href="index.php">SUPERGYM</a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
             <span class="navbar-toggler-icon bg-white"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" href="member_dashboard.php">Dashboard</a></li>
-                <li class="nav-item"><a class="nav-link" href="book_gym.php" style="color: #d6ff00 !important;">Book Gym</a></li>
-                <li class="nav-item"><a class="nav-link" href="book_trainer.php">Book Trainer</a></li>
-                <li class="nav-item"><a class="nav-link" href="my_bookings.php">My Bookings</a></li>
-                <li class="nav-item"><a class="nav-link" href="booking_history.php">Booking History</a></li>
-                <li class="nav-item"><a class="nav-link" href="profile.php">My Account</a></li>
+                <li class="nav-item"><a class="nav-link" href="classes.php" style="color: #d6ff00 !important;">Classes</a></li>
+                <li class="nav-item"><a class="nav-link" href="trainers.php">Trainers</a></li>
             </ul>
             <div class="ms-4">
-                <a href="logout.php" class="btn btn-outline-custom">Logout</a>
+                <?php if(isset($_SESSION['user_id'])): ?>
+                    <a href="dashboard.php" class="btn btn-primary-custom me-2">Dashboard</a>
+                    <a href="logout.php" class="btn btn-outline-custom">Logout</a>
+                <?php else: ?>
+                    <a href="login.php" class="btn btn-outline-custom me-2">Login</a>
+                    <a href="register.php" class="btn btn-primary-custom">Join Now</a>
+                <?php endif; ?>
             </div>
         </div>
     </div>
 </nav>
 
-<div class="container my-5">
-    <div class="row mb-4">
-        <div class="col">
-            <h1>Book Gym Session</h1>
-            <p class="text-muted">Select a time slot to book your gym session</p>
-        </div>
+<div class="hero-small">
+    <div class="container">
+        <h1>Our Classes</h1>
+        <p class="lead">Explore our gym sessions and find the perfect time for your workout</p>
     </div>
+</div>
 
-    <?php if($success_message): ?>
-        <div class="alert alert-success"><?php echo $success_message; ?></div>
-    <?php endif; ?>
-
-    <?php if($error_message): ?>
-        <div class="alert alert-danger"><?php echo $error_message; ?></div>
-    <?php endif; ?>
-
+<div class="container my-5">
     <?php if(count($sessions) == 0): ?>
-        <div class="alert alert-warning">No available gym sessions at the moment. Please check back later.</div>
+        <div class="alert alert-warning">No upcoming classes available at the moment. Please check back later.</div>
     <?php else: ?>
         <div class="row">
             <?php foreach($sessions as $session): ?>
@@ -257,7 +187,7 @@ $sessions = $stmt->fetchAll();
                 }
                 ?>
                 <div class="col-md-4 mb-4">
-                    <div class="session-card p-4">
+                    <div class="class-card p-4">
                         <div class="d-flex justify-content-between align-items-start mb-3">
                             <div>
                                 <h4><?php echo date('D, M j', strtotime($session['session_date'])); ?></h4>
@@ -266,14 +196,18 @@ $sessions = $stmt->fetchAll();
                             <span class="available-spots <?php echo $spots_class; ?>"><?php echo $spots_text; ?></span>
                         </div>
                         
-                        <form method="POST">
-                            <input type="hidden" name="session_id" value="<?php echo $session['id']; ?>">
+                        <?php if(isset($_SESSION['user_id'])): ?>
                             <?php if($available > 0): ?>
-                                <button type="submit" name="book_session" class="btn btn-primary-custom w-100 mt-2">Book Now</button>
+                                <a href="book_gym.php" class="btn btn-primary-custom w-100 mt-2">Book Now</a>
                             <?php else: ?>
-                                <button type="button" class="btn-disabled w-100 mt-2" disabled>Fully Booked</button>
+                                <button class="btn-disabled w-100 mt-2" disabled>Fully Booked</button>
                             <?php endif; ?>
-                        </form>
+                        <?php else: ?>
+                            <div class="text-center mt-2">
+                                <a href="register.php" class="btn btn-primary-custom w-100">Join Membership to Book</a>
+                                <small class="text-muted d-block mt-2">Register as a member to book this session</small>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>

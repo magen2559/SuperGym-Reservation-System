@@ -249,6 +249,8 @@ $user = $stmt->fetch();
                     <li class="nav-item"><a class="nav-link" href="member_dashboard.php">Dashboard</a></li>
                     <li class="nav-item"><a class="nav-link" href="book_gym.php">Book Gym</a></li>
                     <li class="nav-item"><a class="nav-link" href="book_trainer.php">Book Trainer</a></li>
+                    <li class="nav-item"><a class="nav-link" href="my_bookings.php">My Bookings</a></li>
+                    <li class="nav-item"><a class="nav-link" href="booking_history.php">Booking History</a></li>
                 <?php elseif($_SESSION['user_role'] == 'trainer'): ?>
                     <li class="nav-item"><a class="nav-link" href="trainer_dashboard.php">Dashboard</a></li>
                     <li class="nav-item"><a class="nav-link" href="trainer_schedule.php">My Schedule</a></li>

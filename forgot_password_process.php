@@ -30,16 +30,15 @@ if ($_SERVER['REQUEST_METHOD'] == "POST" && isset($_POST['reset_request'])) {
     if ($user) {
         $token = bin2hex(random_bytes(32));
 
-        $expires = date('Y-m-d H:i:s', strtotime('+1 hour'));
 
         $update = $pdo->prepare("
-            UPDATE users
-            SET reset_token = ?, reset_expires = ?
-            WHERE email = ?
-        ");
-        $update->execute([$token, $expires, $email]);
+    UPDATE users
+    SET reset_token = ?, reset_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR)
+    WHERE email = ?
+");
+$update->execute([$token, $email]);
 
-        $reset_link = "http://localhost/gymsystem/reset_password.php?token=" . $token;
+        $reset_link = "http://localhost/GYMSYSTEM/reset_password.php?token=" . $token;
 
         $mail = new PHPMailer(true);
 
@@ -75,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] == "POST" && isset($_POST['reset_request'])) {
                 <body>
                     <div class='container'>
                         <div class='header'>
-                            <h2>💪 SUPERGYM</h2>
+                            <h2>SUPERGYM</h2>
                         </div>
                         <div class='content'>
                             <p>Hello <strong>{$user['name']}</strong>,</p>
@@ -84,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] == "POST" && isset($_POST['reset_request'])) {
                             <p>Or copy this link: <a href='$reset_link'>$reset_link</a></p>
                             
                             <div class='password-requirements'>
-                                <strong>🔐 Password Requirements:</strong><br>
+                                <strong>Password Requirements:</strong><br>
                                 Your new password must contain:<br>
                                 • Uppercase letter (A-Z)<br>
                                 • Lowercase letter (a-z)<br>

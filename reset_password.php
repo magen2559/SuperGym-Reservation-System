@@ -2,7 +2,7 @@
 session_start();
 require_once 'include/db.php';
 
-$token = $_GET['token'] ?? '';
+$token = $_GET['token'] ?? $_POST['token'] ?? '';
 $error = '';
 $success = '';
 
@@ -108,6 +108,21 @@ if ($_SERVER['REQUEST_METHOD'] == "POST" && isset($_POST['reset_password'])) {
             outline: none;
             border-color: #d6ff00;
         }
+        .password-wrapper {
+            position: relative;
+        }
+        .password-wrapper input {
+            padding-right: 55px;
+        }
+        .toggle-password {
+            position: absolute;
+            right: 12px;
+            top: 11px;
+            cursor: pointer;
+            color: #d6ff00;
+            font-size: 13px;
+            font-weight: bold;
+        }
         button {
             width: 100%;
             background-color: #d6ff00;
@@ -192,6 +207,18 @@ if ($_SERVER['REQUEST_METHOD'] == "POST" && isset($_POST['reset_password'])) {
             document.getElementById('req-special').style.color = hasSpecial ? '#86efac' : '#fca5a5';
             document.getElementById('req-length').style.color = isLongEnough ? '#86efac' : '#fca5a5';
         }
+
+        function togglePassword(inputId, icon) {
+            const input = document.getElementById(inputId);
+
+            if (input.type === "password") {
+                input.type = "text";
+                icon.textContent = "Hide";
+            } else {
+                input.type = "password";
+                icon.textContent = "Show";
+            }
+        }
     </script>
 </head>
 <body>
@@ -209,18 +236,27 @@ if ($_SERVER['REQUEST_METHOD'] == "POST" && isset($_POST['reset_password'])) {
             <div class="password-requirements">
                 <strong>Password must contain:</strong>
                 <ul>
-                    <li id="req-upper">✗ At least 1 Uppercase letter (A-Z)</li>
-                    <li id="req-lower">✗ At least 1 Lowercase letter (a-z)</li>
-                    <li id="req-number">✗ At least 1 Number (0-9)</li>
-                    <li id="req-special">✗ At least 1 Special character (!@#$%^&*)</li>
-                    <li id="req-length">✗ At least 8 characters long</li>
+                    <li id="req-upper">At least 1 Uppercase letter (A-Z)</li>
+                    <li id="req-lower">At least 1 Lowercase letter (a-z)</li>
+                    <li id="req-number">At least 1 Number (0-9)</li>
+                    <li id="req-special">At least 1 Special character (!@#$%^&*)</li>
+                    <li id="req-length">At least 8 characters long</li>
                 </ul>
             </div>
             
             <form action="reset_password.php" method="POST">
                 <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
-                <input type="password" id="new_password" name="new_password" placeholder="New password" onkeyup="checkPasswordStrength()" required>
-                <input type="password" name="confirm_password" placeholder="Confirm new password" required>
+
+                <div class="password-wrapper">
+                    <input type="password" id="new_password" name="new_password" placeholder="New password" onkeyup="checkPasswordStrength()" required>
+                    <span class="toggle-password" onclick="togglePassword('new_password', this)">Show</span>
+                </div>
+
+                <div class="password-wrapper">
+                    <input type="password" id="confirm_password" name="confirm_password" placeholder="Confirm new password" required>
+                    <span class="toggle-password" onclick="togglePassword('confirm_password', this)">Show</span>
+                </div>
+
                 <button type="submit" name="reset_password">Reset Password</button>
             </form>
             <div class="back-link"><a href="forgot_password.php">← Back to Forgot Password</a></div>
