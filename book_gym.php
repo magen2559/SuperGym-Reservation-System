@@ -2,7 +2,6 @@
 require_once 'include/session_check.php';
 require_once 'include/db.php';
 
-// 只允许 member 访问
 if ($_SESSION['user_role'] != 'member') {
     header("Location: dashboard.php");
     exit();
@@ -11,12 +10,47 @@ if ($_SESSION['user_role'] != 'member') {
 $member_id = $_SESSION['user_id'];
 $success_message = '';
 $error_message = '';
+for ($i = 0; $i < 30; $i++) {
+    $date = date('Y-m-d', strtotime("+$i days"));
 
-// 处理预约
+    $time_slots = [
+        ['08:00:00', '09:00:00'],
+        ['09:00:00', '10:00:00'],
+        ['10:00:00', '11:00:00'],
+        ['11:00:00', '12:00:00'],
+        ['12:00:00', '13:00:00'],
+        ['13:00:00', '14:00:00'],
+        ['14:00:00', '15:00:00'],
+        ['15:00:00', '16:00:00'],
+        ['16:00:00', '17:00:00'],
+        ['17:00:00', '18:00:00'],
+        ['18:00:00', '19:00:00'],
+        ['19:00:00', '20:00:00'],
+        ['20:00:00', '21:00:00'],
+        ['21:00:00', '22:00:00']
+    ];
+
+    foreach ($time_slots as $slot) {
+        $check = $pdo->prepare("
+            SELECT id FROM gym_sessions 
+            WHERE session_date = ? AND start_time = ? AND end_time = ?
+        ");
+        $check->execute([$date, $slot[0], $slot[1]]);
+
+        if (!$check->fetch()) {
+            $insert = $pdo->prepare("
+                INSERT INTO gym_sessions 
+                (session_date, start_time, end_time, max_capacity, current_bookings)
+                VALUES (?, ?, ?, 20, 0)
+            ");
+            $insert->execute([$date, $slot[0], $slot[1]]);
+        }
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_session'])) {
     $session_id = $_POST['session_id'];
     
-    // 检查是否已经预约了这个时段
     $stmt = $pdo->prepare("
         SELECT id FROM bookings 
         WHERE member_id = ? AND gym_session_id = ? AND status NOT IN ('cancelled', 'rejected')
@@ -25,19 +59,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_session'])) {
     if ($stmt->fetch()) {
         $error_message = "You have already booked this session!";
     } else {
-        // 检查容量
         $stmt = $pdo->prepare("SELECT max_capacity, current_bookings FROM gym_sessions WHERE id = ?");
         $stmt->execute([$session_id]);
         $session = $stmt->fetch();
         
         if ($session && $session['current_bookings'] < $session['max_capacity']) {
-            // 创建预约
             $stmt = $pdo->prepare("
                 INSERT INTO bookings (member_id, booking_type, gym_session_id, status) 
                 VALUES (?, 'gym', ?, 'pending')
             ");
             if ($stmt->execute([$member_id, $session_id])) {
-                // 更新预约人数
                 $stmt = $pdo->prepare("UPDATE gym_sessions SET current_bookings = current_bookings + 1 WHERE id = ?");
                 $stmt->execute([$session_id]);
                 $success_message = "Gym session booked successfully! Waiting for approval.";
@@ -50,15 +81,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_session'])) {
     }
 }
 
-// 获取可预约的 Gym 时段
+$day = $_GET['day'] ?? 'today';
+
+if ($day == 'tomorrow') {
+    $selected_date = date('Y-m-d', strtotime('+1 day'));
+} else {
+    $selected_date = date('Y-m-d');
+}
+
 $stmt = $pdo->prepare("
     SELECT gs.*, 
            (gs.max_capacity - gs.current_bookings) as available_spots
     FROM gym_sessions gs
-    WHERE gs.session_date >= CURDATE()
-    ORDER BY gs.session_date, gs.start_time
+    WHERE gs.session_date = ?
+    AND (
+        gs.session_date > CURDATE()
+        OR gs.start_time > CURTIME()
+    )
+    ORDER BY gs.start_time
 ");
-$stmt->execute();
+$stmt->execute([$selected_date]);
 $sessions = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
@@ -224,6 +266,10 @@ $sessions = $stmt->fetchAll();
         <div class="col">
             <h1>Book Gym Session</h1>
             <p class="text-muted">Select a time slot to book your gym session</p>
+            <div class="mb-4">
+    <a href="book_gym.php?day=today" class="btn <?php echo ($day == 'today') ? 'btn-primary-custom' : 'btn-outline-custom'; ?>">Today</a>
+    <a href="book_gym.php?day=tomorrow" class="btn <?php echo ($day == 'tomorrow') ? 'btn-primary-custom' : 'btn-outline-custom'; ?>">Tomorrow</a>
+</div>
         </div>
     </div>
 

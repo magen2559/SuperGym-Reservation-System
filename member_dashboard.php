@@ -22,7 +22,9 @@ $stmt = $pdo->prepare("
            CASE 
                WHEN b.booking_type = 'trainer' THEN u.name
                ELSE NULL
-           END as trainer_name
+           END as trainer_name,
+           b.payment_status,
+           b.payment_amount
     FROM bookings b
     LEFT JOIN gym_sessions gs ON b.gym_session_id = gs.id
     LEFT JOIN trainer_slots ts ON b.trainer_slot_id = ts.id
@@ -133,10 +135,15 @@ $bookings = $stmt->fetchAll();
         }
         .table-dark {
             background-color: #1a1a1a;
+            border-radius: 10px;
+            overflow: hidden;
         }
-        .table-dark td, .table-dark th {
+        .table-dark td, 
+        .table-dark th {
             border-color: #333;
             color: #ddd;
+            text-align: center;
+            vertical-align: middle;
         }
         .table-dark th {
             color: #d6ff00;
@@ -145,6 +152,24 @@ $bookings = $stmt->fetchAll();
         .status-pending { color: #fde047; }
         .status-rejected { color: #fca5a5; }
         .status-cancelled { color: #9ca3af; }
+        .paid-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            background-color: #22c55e;
+            color: #fff;
+        }
+        .unpaid-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            background-color: #6b7280;
+            color: #fff;
+        }
         footer {
             background-color: #0a0a0a;
             padding: 40px;
@@ -244,14 +269,20 @@ $bookings = $stmt->fetchAll();
         </div>
     </div>
 
-    
     <div class="card p-4">
         <h3 class="mb-3">Recent Bookings</h3>
         <?php if(count($bookings) > 0): ?>
             <div class="table-responsive">
                 <table class="table table-dark">
                     <thead>
-                        <tr><th>Type</th><th>Date</th><th>Time</th><th>Trainer</th><th>Status</th></tr>
+                        <tr>
+                            <th>Type</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Trainer</th>
+                            <th>Status</th>
+                            <th>Payment</th>
+                        </tr>
                     </thead>
                     <tbody>
                         <?php foreach($bookings as $booking): ?>
@@ -260,8 +291,22 @@ $bookings = $stmt->fetchAll();
                                 <td data-label="Date"><?php echo htmlspecialchars($booking['booking_date'] ?? 'N/A'); ?></td>
                                 <td data-label="Time"><?php echo htmlspecialchars($booking['booking_time'] ?? 'N/A'); ?></td>
                                 <td data-label="Trainer"><?php echo htmlspecialchars($booking['trainer_name'] ?? '-'); ?></td>
-                                <td data-label="Status"><span class="status-<?php echo $booking['status']; ?>"><?php echo ucfirst($booking['status']); ?></span></td>
-                            </tr>
+                                <td data-label="Status">
+                                    <span class="status-<?php echo $booking['status']; ?>">
+                                        <?php echo ucfirst($booking['status']); ?>
+                                    </span>
+                                </td>
+                                <td data-label="Payment">
+                                    <?php if($booking['booking_type'] == 'trainer'): ?>
+                                        <?php if($booking['payment_status'] == 'paid'): ?>
+                                            <span class="paid-badge">✓ Paid</span>
+                                        <?php else: ?>
+                                            <span class="unpaid-badge">Unpaid</span>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <span class="text-muted">-</span>
+                                    <?php endif; ?>
+                                </td ?>
                         <?php endforeach; ?>
                     </tbody>
                 </table>

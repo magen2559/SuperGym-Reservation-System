@@ -22,7 +22,9 @@ $stmt = $pdo->prepare("
            CASE 
                WHEN b.booking_type = 'trainer' THEN u.name
                ELSE NULL
-           END as trainer_name
+           END as trainer_name,
+           b.payment_status,
+           b.payment_amount
     FROM bookings b
     LEFT JOIN gym_sessions gs ON b.gym_session_id = gs.id
     LEFT JOIN trainer_slots ts ON b.trainer_slot_id = ts.id
@@ -113,12 +115,36 @@ $past_bookings = $stmt->fetchAll();
             padding-left: 20px;
             border-left: 1px solid #555;
         }
+        .yellow-card {
+            background-color: #EEF527;
+            border: 1px solid #333;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            transition: transform 0.3s;
+        }
+        .yellow-card:hover {
+            transform: translateY(-5px);
+            border-color: #fff;
+        }
+        .yellow-card h3 {
+            color: #000;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ccc;
+        }
         .table-dark {
             background-color: #1a1a1a;
+            border-radius: 10px;
+            overflow: hidden;
         }
-        .table-dark td, .table-dark th {
+        .table-dark td, 
+        .table-dark th {
             border-color: #333;
             color: #ddd;
+            text-align: center;
+            vertical-align: middle;
+            padding: 12px;
         }
         .table-dark th {
             color: #d6ff00;
@@ -128,12 +154,23 @@ $past_bookings = $stmt->fetchAll();
         .status-rejected { color: #fca5a5; }
         .status-cancelled { color: #9ca3af; }
         .status-completed { color: #60a5fa; }
-        .history-card {
-            background-color: #1a1a1a;
-            border: 1px solid #333;
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 30px;
+        .paid-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            background-color: #22c55e;
+            color: #fff;
+        }
+        .unpaid-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            background-color: #6b7280;
+            color: #fff;
         }
         footer {
             background-color: #0a0a0a;
@@ -151,15 +188,15 @@ $past_bookings = $stmt->fetchAll();
         .empty-state {
             text-align: center;
             padding: 40px;
-            color: #aaa;
+            color: #555;
         }
-        .badge-custom {
-            background-color: #d6ff00;
-            color: #000;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            margin-left: 10px;
+        .empty-state .btn-primary-custom {
+            background-color: #000;
+            color: #EEF527;
+        }
+        .empty-state .btn-primary-custom:hover {
+            background-color: #333;
+            color: #EEF527;
         }
     </style>
 </head>
@@ -198,7 +235,8 @@ $past_bookings = $stmt->fetchAll();
         </div>
     </div>
 
-    <div class="history-card">
+    <div class="yellow-card">
+        <h3>📜 Past Bookings</h3>
         <?php if(count($past_bookings) > 0): ?>
             <div class="table-responsive">
                 <table class="table table-dark">
@@ -209,6 +247,7 @@ $past_bookings = $stmt->fetchAll();
                             <th>Time</th>
                             <th>Trainer</th>
                             <th>Status</th>
+                            <th>Payment</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -222,6 +261,17 @@ $past_bookings = $stmt->fetchAll();
                                     <span class="status-<?php echo $booking['status']; ?>">
                                         <?php echo ucfirst($booking['status']); ?>
                                     </span>
+                                </td>
+                                <td>
+                                    <?php if($booking['booking_type'] == 'trainer'): ?>
+                                        <?php if($booking['payment_status'] == 'paid'): ?>
+                                            <span class="paid-badge">✓ Paid</span>
+                                        <?php else: ?>
+                                            <span class="unpaid-badge">Unpaid</span>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <span class="text-muted">-</span>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

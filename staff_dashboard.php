@@ -291,17 +291,17 @@ $pending_bookings = $stmt->fetch()['count'];
 
         <div class="col-md-3 mb-3">
 
-            <div class="stat-card">
+            <a href="manage_bookings.php" style="text-decoration: none; display: block;">
+    <div class="stat-card">
+        <div class="stat-number">
+            <?php echo $pending_bookings; ?>
+        </div>
 
-                <div class="stat-number">
-                    <?php echo $pending_bookings; ?>
-                </div>
-
-                <div class="text-muted">
-                    Pending Requests
-                </div>
-
-            </div>
+        <div class="text-muted">
+            Pending Requests
+        </div>
+    </div>
+</a>
 
         </div>
 
