@@ -5,7 +5,8 @@ $stmt = $pdo->prepare("
     SELECT gs.*, 
            (gs.max_capacity - gs.current_bookings) as available_spots
     FROM gym_sessions gs
-    WHERE gs.session_date >= CURDATE()
+    WHERE (gs.session_date > CURDATE()) 
+       OR (gs.session_date = CURDATE() AND gs.start_time > CURTIME())
     ORDER BY gs.session_date, gs.start_time
 ");
 $stmt->execute();
@@ -86,6 +87,17 @@ $sessions = $stmt->fetchAll();
             border-radius: 10px;
             border: none;
             cursor: not-allowed;
+        }
+        .btn-ongoing {
+            background-color: #6b7280;
+            color: #fff;
+            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 10px;
+            border: none;
+            cursor: not-allowed;
+            width: 100%;
+            margin-top: 10px;
         }
         .class-card {
             background-color: #1a1a1a;
@@ -172,6 +184,16 @@ $sessions = $stmt->fetchAll();
             <?php foreach($sessions as $session): ?>
                 <?php 
                 $available = $session['available_spots'];
+                
+                $isOngoing = false;
+                $today = date('Y-m-d');
+                $currentTime = date('H:i:s');
+                if ($session['session_date'] == $today) {
+                    if ($session['start_time'] <= $currentTime && $session['end_time'] >= $currentTime) {
+                        $isOngoing = true;
+                    }
+                }
+                
                 if ($available <= 0) {
                     $spots_class = 'spots-full';
                     $spots_text = 'Fully Booked';
@@ -196,17 +218,21 @@ $sessions = $stmt->fetchAll();
                             <span class="available-spots <?php echo $spots_class; ?>"><?php echo $spots_text; ?></span>
                         </div>
                         
-                        <?php if(isset($_SESSION['user_id'])): ?>
-                            <?php if($available > 0): ?>
-                                <a href="book_gym.php" class="btn btn-primary-custom w-100 mt-2">Book Now</a>
-                            <?php else: ?>
-                                <button class="btn-disabled w-100 mt-2" disabled>Fully Booked</button>
-                            <?php endif; ?>
+                        <?php if($isOngoing): ?>
+                            <button class="btn-ongoing w-100 mt-2" disabled>⏳ Ongoing</button>
                         <?php else: ?>
-                            <div class="text-center mt-2">
-                                <a href="register.php" class="btn btn-primary-custom w-100">Join Membership to Book</a>
-                                <small class="text-muted d-block mt-2">Register as a member to book this session</small>
-                            </div>
+                            <?php if(isset($_SESSION['user_id'])): ?>
+                                <?php if($available > 0): ?>
+                                    <a href="book_gym.php" class="btn btn-primary-custom w-100 mt-2">Book Now</a>
+                                <?php else: ?>
+                                    <button class="btn-disabled w-100 mt-2" disabled>Fully Booked</button>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <div class="text-center mt-2">
+                                    <a href="register.php" class="btn btn-primary-custom w-100">Join Membership to Book</a>
+                                    <small class="text-muted d-block mt-2">Register as a member to book this session</small>
+                                </div>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -215,12 +241,7 @@ $sessions = $stmt->fetchAll();
     <?php endif; ?>
 </div>
 
-<footer>
-    <div class="container">
-        <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">SUPERGYM</div>
-        <p>© SuperGym Booking System. All Rights Reserved.</p>
-    </div>
-</footer>
+<?php include 'footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

@@ -56,10 +56,37 @@ if ($status == 'success' && $booking_id > 0) {
             ");
             $stmt->execute([$transactionId, $booking_id]);
             
-            echo "<script>
-                alert('Payment successful! Your booking is now confirmed.');
-                window.location.href = 'my_bookings.php';
-            </script>";
+            $stmt = $pdo->prepare("
+                SELECT b.*, 
+                       u.name as member_name, 
+                       u.email as member_email,
+                       CASE 
+                           WHEN b.booking_type = 'trainer' THEN trainer.name
+                           ELSE NULL
+                       END as trainer_name,
+                       CASE 
+                           WHEN b.booking_type = 'gym' THEN gs.session_date
+                           WHEN b.booking_type = 'trainer' THEN ts.slot_date
+                       END as session_date,
+                       CASE 
+                           WHEN b.booking_type = 'gym' THEN CONCAT(gs.start_time, ' - ', gs.end_time)
+                           WHEN b.booking_type = 'trainer' THEN CONCAT(ts.start_time, ' - ', ts.end_time)
+                       END as session_time
+                FROM bookings b
+                JOIN users u ON b.member_id = u.id
+                LEFT JOIN gym_sessions gs ON b.gym_session_id = gs.id
+                LEFT JOIN trainer_slots ts ON b.trainer_slot_id = ts.id
+                LEFT JOIN trainers t ON ts.trainer_id = t.id
+                LEFT JOIN users trainer ON t.user_id = trainer.id
+                WHERE b.id = ?
+            ");
+            $stmt->execute([$booking_id]);
+            $receipt_data = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            $_SESSION['receipt_data'] = $receipt_data;
+            $_SESSION['payment_success'] = true;
+            
+            header("Location: receipt.php?booking_id=" . $booking_id);
             exit();
         } else {
             echo "<script>

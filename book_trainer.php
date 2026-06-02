@@ -59,7 +59,8 @@ $stmt = $pdo->prepare("
     FROM trainer_slots ts
     JOIN trainers t ON t.id = ts.trainer_id
     JOIN users u ON u.id = t.user_id
-    WHERE ts.slot_date >= CURDATE()
+    WHERE (ts.slot_date > CURDATE()) 
+       OR (ts.slot_date = CURDATE() AND ts.end_time > CURTIME())
     ORDER BY ts.slot_date, ts.start_time
 ");
 $stmt->execute([$member_id]);
@@ -131,6 +132,15 @@ $slots = $stmt->fetchAll();
         .btn-booked {
             background-color: #22c55e;
             color: #fff;
+            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 10px;
+            border: none;
+            cursor: not-allowed;
+        }
+        .btn-ongoing {
+            background-color: #f59e0b;
+            color: #000;
             font-weight: bold;
             padding: 8px 20px;
             border-radius: 10px;
@@ -243,6 +253,15 @@ $slots = $stmt->fetchAll();
                 <?php
                 $is_user_booked = ($slot['user_booked'] > 0);
                 $is_full = ($slot['total_booked'] > 0 && $slot['is_available'] == 0);
+                
+                $isOngoing = false;
+                $today = date('Y-m-d');
+                $currentTime = date('H:i:s');
+                if ($slot['slot_date'] == $today) {
+                    if ($slot['start_time'] <= $currentTime && $slot['end_time'] >= $currentTime) {
+                        $isOngoing = true;
+                    }
+                }
                 ?>
                 <div class="col-md-4 mb-4">
                     <div class="trainer-card p-4 <?php echo $is_user_booked ? 'slot-booked' : ''; ?>">
@@ -258,7 +277,11 @@ $slots = $stmt->fetchAll();
                             <p class="text-warning fw-bold mb-0">⏰ <?php echo date('g:i A', strtotime($slot['start_time'])); ?> - <?php echo date('g:i A', strtotime($slot['end_time'])); ?></p>
                         </div>
                         
-                        <?php if($is_user_booked): ?>
+                        <?php if($isOngoing): ?>
+                            <div class="mt-3 text-center">
+                                <button class="btn-ongoing w-100" disabled>⏳ Ongoing</button>
+                            </div>
+                        <?php elseif($is_user_booked): ?>
                             <div class="mt-3 text-center">
                                 <button class="btn-booked w-100" disabled>✓ Already Booked (Pending)</button>
                             </div>
@@ -279,12 +302,7 @@ $slots = $stmt->fetchAll();
     <?php endif; ?>
 </div>
 
-<footer>
-    <div class="container">
-        <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">SUPERGYM</div>
-        <p>© SuperGym Booking System. All Rights Reserved.</p>
-    </div>
-</footer>
+<?php include 'footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

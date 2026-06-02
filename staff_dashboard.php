@@ -205,8 +205,12 @@ $pending_bookings = $stmt->fetch()['count'];
         <div class="collapse navbar-collapse" id="navbarNav">
 
             <ul class="navbar-nav ms-auto">
+                <li class="nav-item"><a class="nav-link" href="staff_dashboard.php" style="color: #d6ff00 !important;">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_users.php">Users</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_trainers.php">Trainers</a></li>
+                <li class="nav-item"><a class="nav-link" href="manage_bookings.php">Bookings</a></li>
+                <li class="nav-item"><a class="nav-link" href="equipment.php">Equipment</a></li>
+                <li class="nav-item"><a class="nav-link" href="gym_capacity.php">Gym Capacity</a></li>
                 <li class="nav-item"><a class="nav-link" href="reports.php">Reports</a></li>
                 <li class="nav-item"><a class="nav-link" href="profile.php">My Account</a></li>
             </ul>
@@ -310,132 +314,56 @@ $pending_bookings = $stmt->fetch()['count'];
     <div class="row g-4">
 
         <div class="col-md-4">
-
             <a href="manage_users.php" class="menu-card">
-
-                <div class="menu-icon">
-                    👥
-                </div>
-
+                <div class="menu-icon">👥</div>
                 <h3>Manage Users</h3>
-
-                <p class="text-muted small">
-                    View, add, edit, or delete member accounts
-                </p>
-
+                <p class="text-muted small">View, add, edit or delete member accounts</p>
             </a>
-
         </div>
 
         <div class="col-md-4">
-
             <a href="manage_trainers.php" class="menu-card">
-
-                <div class="menu-icon">
-                    👨‍🏫
-                </div>
-
+                <div class="menu-icon">👨‍🏫</div>
                 <h3>Manage Trainers</h3>
-
-                <p class="text-muted small">
-                    View, add, edit, or delete trainer accounts
-                </p>
-
+                <p class="text-muted small">View, add, edit or delete trainer accounts</p>
             </a>
-
         </div>
 
         <div class="col-md-4">
+            <a href="manage_bookings.php" class="menu-card">
+                <div class="menu-icon">📅</div>
+                <h3>Manage Bookings</h3>
+                <p class="text-muted small">Approve or reject gym session booking requests</p>
+            </a>
+        </div>
 
+        <div class="col-md-4">
             <a href="gym_capacity.php" class="menu-card">
-
-                <div class="menu-icon">
-                    🏋️
-                </div>
-
+                <div class="menu-icon">🏋️</div>
                 <h3>Gym Capacity</h3>
-
-                <p class="text-muted small">
-                    Update gym session capacity limits
-                </p>
-
+                <p class="text-muted small">Update gym session capacity limits</p>
             </a>
-
         </div>
 
         <div class="col-md-4">
-
             <a href="equipment.php" class="menu-card">
-
-                <div class="menu-icon">
-                    ⚙️
-                </div>
-
+                <div class="menu-icon">⚙️</div>
                 <h3>Manage Equipment</h3>
-
-                <p class="text-muted small">
-                    Track and manage gym equipment inventory
-                </p>
-
+                <p class="text-muted small">Track and manage gym equipment inventory</p>
             </a>
-
         </div>
 
         <div class="col-md-4">
-
             <a href="reports.php" class="menu-card">
-
-                <div class="menu-icon">
-                    📊
-                </div>
-
+                <div class="menu-icon">📊</div>
                 <h3>Generate Reports</h3>
-
-                <p class="text-muted small">
-                    View booking and gym usage reports
-                </p>
-
+                <p class="text-muted small">View booking and gym usage reports</p>
             </a>
-
         </div>
-
-        <div class="col-md-4">
-
-            <a href="profile.php" class="menu-card">
-
-                <div class="menu-icon">
-                    👤
-                </div>
-
-                <h3>My Account</h3>
-
-                <p class="text-muted small">
-                    Update your profile and account settings
-                </p>
-
-            </a>
-
-        </div>
-
     </div>
-
 </div>
 
-<footer>
-
-    <div class="container">
-
-        <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">
-            SUPERGYM
-        </div>
-
-        <p>
-            © SuperGym Booking System. All Rights Reserved.
-        </p>
-
-    </div>
-
-</footer>
+<?php include 'footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 

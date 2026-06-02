@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['cancel_booking'])) {
     $session_or_slot_id = $_POST['session_or_slot_id'];
     $member_id = $_SESSION['user_id'];
     
-    $stmt = $pdo->prepare("SELECT id, status FROM bookings WHERE id = ? AND member_id = ?");
+    $stmt = $pdo->prepare("SELECT id, status, payment_status, payment_amount FROM bookings WHERE id = ? AND member_id = ?");
     $stmt->execute([$booking_id, $member_id]);
     $booking = $stmt->fetch();
     
@@ -31,6 +31,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['cancel_booking'])) {
     $pdo->beginTransaction();
     
     try {
+        $isPaid = ($booking['payment_status'] == 'paid');
+        
         $stmt = $pdo->prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?");
         $stmt->execute([$booking_id]);
         
@@ -44,8 +46,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['cancel_booking'])) {
             $stmt->execute([$session_or_slot_id]);
         }
         
-        $pdo->commit();
+        if ($isPaid) {
+            $stmt = $pdo->prepare("
+                UPDATE bookings 
+                SET refund_status = 'completed', 
+                    refund_completed_date = NOW(),
+                    payment_status = 'refunded'
+                WHERE id = ?
+            ");
+            $stmt->execute([$booking_id]);
+            
+            $pdo->commit();
+            header("Location: my_bookings.php?success=Booking cancelled and refund processed successfully");
+            exit();
+        }
         
+        $pdo->commit();
         header("Location: my_bookings.php?success=Booking cancelled successfully");
         exit();
         

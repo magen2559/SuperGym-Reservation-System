@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['booking_id']) && isset
         if ($action == 'approve') {
             $stmt = $pdo->prepare("UPDATE bookings SET status = 'approved' WHERE id = ?");
             $stmt->execute([$booking_id]);
-            $message = "Booking approved successfully!";
+            $message = "Booking approved successfully! Member can now make payment.";
         } elseif ($action == 'reject') {
             $stmt = $pdo->prepare("UPDATE bookings SET status = 'rejected' WHERE id = ?");
             $stmt->execute([$booking_id]);

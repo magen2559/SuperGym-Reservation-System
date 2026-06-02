@@ -254,8 +254,14 @@ $user = $stmt->fetch();
                 <?php elseif($_SESSION['user_role'] == 'trainer'): ?>
                     <li class="nav-item"><a class="nav-link" href="trainer_dashboard.php">Dashboard</a></li>
                     <li class="nav-item"><a class="nav-link" href="trainer_schedule.php">My Schedule</a></li>
+                    <li class="nav-item"><a class="nav-link" href="trainer_history.php">History</a></li>
                 <?php else: ?>
                     <li class="nav-item"><a class="nav-link" href="staff_dashboard.php">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="manage_users.php">Users</a></li>
+                    <li class="nav-item"><a class="nav-link" href="manage_trainers.php">Trainers</a></li>
+                    <li class="nav-item"><a class="nav-link" href="equipment.php">Equipment</a></li>
+                    <li class="nav-item"><a class="nav-link" href="gym_capacity.php">Gym Capacity</a></li>
+                    <li class="nav-item"><a class="nav-link" href="reports.php">Reports</a></li>
                 <?php endif; ?>
                 <li class="nav-item"><a class="nav-link" href="profile.php" style="color: #d6ff00 !important;">My Account</a></li>
             </ul>
@@ -327,12 +333,7 @@ $user = $stmt->fetch();
     </div>
 </div>
 
-<footer>
-    <div class="container">
-        <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">SUPERGYM</div>
-        <p style="color: #666;">© SuperGym Booking System. All Rights Reserved.</p>
-    </div>
-</footer>
+<?php include 'footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

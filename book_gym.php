@@ -10,40 +10,32 @@ if ($_SESSION['user_role'] != 'member') {
 $member_id = $_SESSION['user_id'];
 $success_message = '';
 $error_message = '';
+
+$time_slots = [
+    '08:00:00', '09:00:00', '10:00:00', '11:00:00', '12:00:00',
+    '13:00:00', '14:00:00', '15:00:00', '16:00:00', '17:00:00',
+    '18:00:00', '19:00:00', '20:00:00', '21:00:00', '22:00:00'
+];
+
 for ($i = 0; $i < 30; $i++) {
     $date = date('Y-m-d', strtotime("+$i days"));
-
-    $time_slots = [
-        ['08:00:00', '09:00:00'],
-        ['09:00:00', '10:00:00'],
-        ['10:00:00', '11:00:00'],
-        ['11:00:00', '12:00:00'],
-        ['12:00:00', '13:00:00'],
-        ['13:00:00', '14:00:00'],
-        ['14:00:00', '15:00:00'],
-        ['15:00:00', '16:00:00'],
-        ['16:00:00', '17:00:00'],
-        ['17:00:00', '18:00:00'],
-        ['18:00:00', '19:00:00'],
-        ['19:00:00', '20:00:00'],
-        ['20:00:00', '21:00:00'],
-        ['21:00:00', '22:00:00']
-    ];
-
-    foreach ($time_slots as $slot) {
+    
+    foreach ($time_slots as $start_time) {
+        $end_time = date('H:i:s', strtotime($start_time . ' +1 hour'));
+        
         $check = $pdo->prepare("
             SELECT id FROM gym_sessions 
             WHERE session_date = ? AND start_time = ? AND end_time = ?
         ");
-        $check->execute([$date, $slot[0], $slot[1]]);
-
+        $check->execute([$date, $start_time, $end_time]);
+        
         if (!$check->fetch()) {
             $insert = $pdo->prepare("
                 INSERT INTO gym_sessions 
                 (session_date, start_time, end_time, max_capacity, current_bookings)
-                VALUES (?, ?, ?, 20, 0)
+                VALUES (?, ?, ?, ?, ?)
             ");
-            $insert->execute([$date, $slot[0], $slot[1]]);
+            $insert->execute([$date, $start_time, $end_time, 20, 0]);
         }
     }
 }
@@ -94,10 +86,10 @@ $stmt = $pdo->prepare("
            (gs.max_capacity - gs.current_bookings) as available_spots
     FROM gym_sessions gs
     WHERE gs.session_date = ?
-    AND (
-        gs.session_date > CURDATE()
-        OR gs.start_time > CURTIME()
-    )
+      AND (
+          gs.session_date > CURDATE()
+          OR (gs.session_date = CURDATE() AND gs.start_time > CURTIME())
+      )
     ORDER BY gs.start_time
 ");
 $stmt->execute([$selected_date]);
@@ -219,6 +211,17 @@ $sessions = $stmt->fetchAll();
             background-color: #ef4444;
             color: #fff;
         }
+        .btn-ongoing {
+            background-color: #6b7280;
+            color: #fff;
+            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 10px;
+            border: none;
+            cursor: not-allowed;
+            width: 100%;
+            margin-top: 10px;
+        }
         footer {
             background-color: #0a0a0a;
             padding: 40px;
@@ -266,10 +269,11 @@ $sessions = $stmt->fetchAll();
         <div class="col">
             <h1>Book Gym Session</h1>
             <p class="text-muted">Select a time slot to book your gym session</p>
+            
             <div class="mb-4">
-    <a href="book_gym.php?day=today" class="btn <?php echo ($day == 'today') ? 'btn-primary-custom' : 'btn-outline-custom'; ?>">Today</a>
-    <a href="book_gym.php?day=tomorrow" class="btn <?php echo ($day == 'tomorrow') ? 'btn-primary-custom' : 'btn-outline-custom'; ?>">Tomorrow</a>
-</div>
+                <a href="book_gym.php?day=today" class="btn <?php echo ($day == 'today') ? 'btn-primary-custom' : 'btn-outline-custom'; ?>">Today</a>
+                <a href="book_gym.php?day=tomorrow" class="btn <?php echo ($day == 'tomorrow') ? 'btn-primary-custom' : 'btn-outline-custom'; ?>">Tomorrow</a>
+            </div>
         </div>
     </div>
 
@@ -288,6 +292,16 @@ $sessions = $stmt->fetchAll();
             <?php foreach($sessions as $session): ?>
                 <?php 
                 $available = $session['available_spots'];
+                
+                $isOngoing = false;
+                $today = date('Y-m-d');
+                $currentTime = date('H:i:s');
+                if ($session['session_date'] == $today) {
+                    if ($session['start_time'] <= $currentTime && $session['end_time'] >= $currentTime) {
+                        $isOngoing = true;
+                    }
+                }
+                
                 if ($available <= 0) {
                     $spots_class = 'spots-full';
                     $spots_text = 'Fully Booked';
@@ -312,14 +326,18 @@ $sessions = $stmt->fetchAll();
                             <span class="available-spots <?php echo $spots_class; ?>"><?php echo $spots_text; ?></span>
                         </div>
                         
-                        <form method="POST">
-                            <input type="hidden" name="session_id" value="<?php echo $session['id']; ?>">
-                            <?php if($available > 0): ?>
-                                <button type="submit" name="book_session" class="btn btn-primary-custom w-100 mt-2">Book Now</button>
-                            <?php else: ?>
-                                <button type="button" class="btn-disabled w-100 mt-2" disabled>Fully Booked</button>
-                            <?php endif; ?>
-                        </form>
+                        <?php if($isOngoing): ?>
+                            <button class="btn-ongoing w-100 mt-2" disabled>⏳ Ongoing</button>
+                        <?php else: ?>
+                            <form method="POST">
+                                <input type="hidden" name="session_id" value="<?php echo $session['id']; ?>">
+                                <?php if($available > 0): ?>
+                                    <button type="submit" name="book_session" class="btn btn-primary-custom w-100 mt-2">Book Now</button>
+                                <?php else: ?>
+                                    <button type="button" class="btn-disabled w-100 mt-2" disabled>Fully Booked</button>
+                                <?php endif; ?>
+                            </form>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>
@@ -327,12 +345,7 @@ $sessions = $stmt->fetchAll();
     <?php endif; ?>
 </div>
 
-<footer>
-    <div class="container">
-        <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">SUPERGYM</div>
-        <p>© SuperGym Booking System. All Rights Reserved.</p>
-    </div>
-</footer>
+<?php include 'footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

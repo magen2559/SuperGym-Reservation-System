@@ -22,6 +22,10 @@ $stmt = $pdo->prepare("
                WHEN b.booking_type = 'trainer' THEN CONCAT(ts.start_time, ' - ', ts.end_time)
            END as booking_time,
            CASE 
+               WHEN b.booking_type = 'gym' THEN gs.start_time
+               WHEN b.booking_type = 'trainer' THEN ts.start_time
+           END as booking_start_time,
+           CASE 
                WHEN b.booking_type = 'trainer' THEN u.name
                ELSE NULL
            END as trainer_name,
@@ -30,7 +34,10 @@ $stmt = $pdo->prepare("
                WHEN b.booking_type = 'trainer' THEN ts.id
            END as session_or_slot_id,
            b.payment_status,
-           b.payment_amount
+           b.payment_amount,
+           b.refund_status,
+           b.payment_date,
+           b.refund_request_date
     FROM bookings b
     LEFT JOIN gym_sessions gs ON b.gym_session_id = gs.id
     LEFT JOIN trainer_slots ts ON b.trainer_slot_id = ts.id
@@ -98,17 +105,37 @@ foreach ($bookings as $booking) {
         .nav-link:hover {
             color: #d6ff00 !important;
         }
+        .btn-add-to-cart {
+            background-color: #000;
+            color: #fff;
+            font-weight: bold;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 50px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(214, 255, 0, 0.3);
+        }
+        .btn-add-to-cart:hover {
+            background-color: #c0e800;
+            color: #000;
+            transform: scale(1.02);
+            box-shadow: 0 6px 20px rgba(214, 255, 0, 0.4);
+        }
         .btn-primary-custom {
             background-color: #d6ff00;
             color: #000;
             font-weight: bold;
             border: none;
-            padding: 8px 20px;
+            padding: 10px 25px;
             border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
         }
         .btn-primary-custom:hover {
             background-color: #c0e800;
             color: #000;
+            transform: scale(1.02);
         }
         .btn-outline-custom {
             border: 2px solid #d6ff00;
@@ -153,6 +180,38 @@ foreach ($bookings as $booking) {
             color: #000;
             text-decoration: none;
         }
+        .btn-refund {
+            background-color: #f59e0b;
+            color: #fff;
+            font-weight: bold;
+            padding: 5px 12px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-size: 12px;
+            margin-right: 5px;
+            display: inline-block;
+        }
+        .btn-refund:hover {
+            background-color: #d97706;
+            color: #fff;
+            text-decoration: none;
+        }
+        .btn-receipt {
+            background-color: #3b82f6;
+            color: #fff;
+            font-weight: bold;
+            padding: 5px 12px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-size: 12px;
+            margin-right: 5px;
+            display: inline-block;
+        }
+        .btn-receipt:hover {
+            background-color: #2563eb;
+            color: #fff;
+            text-decoration: none;
+        }
         .paid-badge {
             display: inline-block;
             padding: 5px 12px;
@@ -171,39 +230,30 @@ foreach ($bookings as $booking) {
             background-color: #6b7280;
             color: #fff;
         }
+        .refund-pending-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            background-color: #f59e0b;
+            color: #000;
+        }
+        .refund-completed-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            background-color: #ef4444;
+            color: #fff;
+        }
         .welcome-text {
             color: #ddd;
             font-size: 14px;
             margin-left: 20px;
             padding-left: 20px;
             border-left: 1px solid #555;
-        }
-        .dashboard-card {
-            background-color: #1a1a1a;
-            border: 1px solid #333;
-            border-radius: 15px;
-            transition: transform 0.3s;
-            padding: 25px;
-            text-align: center;
-            height: 100%;
-        }
-        .dashboard-card:hover {
-            transform: translateY(-5px);
-            border-color: #d6ff00;
-        }
-        .dashboard-card h4 {
-            color: #fff;
-            margin-top: 10px;
-        }
-        .dashboard-card p {
-            color: #aaa;
-        }
-        .dashboard-card .btn-primary-custom {
-            background-color: #d6ff00;
-            color: #000;
-        }
-        .dashboard-card .btn-primary-custom:hover {
-            background-color: #c0e800;
         }
         .table-dark td, 
         .table-dark th {
@@ -260,7 +310,12 @@ foreach ($bookings as $booking) {
             color: #000;
             margin-bottom: 20px;
             padding-bottom: 10px;
-            border-bottom: 1px solid #333;
+            border-bottom: 1px solid #ccc;
+        }
+        .cart-btn-container {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 20px;
         }
         footer {
             background-color: #0a0a0a;
@@ -321,63 +376,111 @@ foreach ($bookings as $booking) {
     <?php endif; ?>
 
     <div class="content-card">
-        <h3>📅 Upcoming Bookings</h3>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="mb-0">📅 All Bookings</h3>
+            <button type="button" id="addToCartBtn" class="btn-add-to-cart">➕ Add Selected to Cart</button>
+        </div>
+        
         <?php if(count($upcoming_bookings) > 0): ?>
             <div class="table-responsive">
-                <table class="table table-dark">
-                    <thead>
-                        <tr>
-                            <th>Type</th>
-                            <th>Date</th>
-                            <th>Time</th>
-                            <th>Trainer</th>
-                            <th>Status</th>
-                            <th>Payment</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach($upcoming_bookings as $booking): ?>
+                <form id="cartForm" method="post">
+                    <table class="table table-dark">
+                        <thead>
                             <tr>
-                                <td><?php echo $booking['booking_type'] == 'gym' ? '🏋️ Gym Session' : '👨‍🏫 Personal Trainer'; ?></td>
-                                <td><?php echo htmlspecialchars($booking['booking_date'] ?? 'N/A'); ?></td>
-                                <td><?php echo htmlspecialchars($booking['booking_time'] ?? 'N/A'); ?></td>
-                                <td><?php echo htmlspecialchars($booking['trainer_name'] ?? '-'); ?></td>
-                                <td>
-                                    <span class="status-badge status-<?php echo $booking['status']; ?>">
-                                        <?php echo ucfirst($booking['status']); ?>
-                                    </span>
-                                </td>
-                                <td>
-                                    <?php if($booking['booking_type'] == 'trainer'): ?>
-                                        <?php if($booking['payment_status'] == 'paid'): ?>
-                                            <span class="paid-badge">✓ Paid (RM<?php echo $booking['payment_amount']; ?>)</span>
-                                        <?php else: ?>
-                                            <span class="unpaid-badge">Unpaid (RM50)</span>
-                                        <?php endif; ?>
-                                    <?php else: ?>
-                                        <span class="text-muted">-</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php if($booking['booking_type'] == 'trainer' && $booking['payment_status'] != 'paid' && ($booking['status'] == 'pending' || $booking['status'] == 'approved')): ?>
-                                        <a href="process_payment.php?booking_id=<?php echo $booking['id']; ?>" class="btn-pay">💰 Pay Now</a>
-                                    <?php endif; ?>
+                                <th><input type="checkbox" id="selectAll"></th>
+                                <th>Type</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Trainer</th>
+                                <th>Status</th>
+                                <th>Payment</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach($upcoming_bookings as $booking): ?>
+                                <?php 
+                                $can_refund = false;
+                                $hours_until_booking = null;
+                                if ($booking['booking_type'] == 'trainer' && 
+                                    $booking['payment_status'] == 'paid' && 
+                                    $booking['refund_status'] == 'none' &&
+                                    $booking['booking_date'] && $booking['booking_start_time']) {
                                     
-                                    <?php if($booking['status'] == 'pending' || $booking['status'] == 'approved'): ?>
-                                        <form action="cancel_booking.php" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to cancel this booking?')">
-                                            <input type="hidden" name="booking_id" value="<?php echo $booking['id']; ?>">
-                                            <input type="hidden" name="booking_type" value="<?php echo $booking['booking_type']; ?>">
-                                            <input type="hidden" name="session_or_slot_id" value="<?php echo $booking['session_or_slot_id']; ?>">
-                                            <button type="submit" name="cancel_booking" class="btn-cancel">Cancel</button>
-                                        </form>
-                                    <?php else: ?>
-                                        <span class="text-muted">-</span>
-                                    <?php endif; ?>
-                                </td>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                                    $booking_datetime = strtotime($booking['booking_date'] . ' ' . $booking['booking_start_time']);
+                                    $now = time();
+                                    $hours_until_booking = ($booking_datetime - $now) / 3600;
+                                    
+                                    $can_refund = ($hours_until_booking > 24);
+                                }
+                                $can_add_to_cart = ($booking['booking_type'] == 'trainer' && 
+                                                    $booking['payment_status'] != 'paid' && 
+                                                    $booking['payment_status'] != 'refunded' && 
+                                                    $booking['status'] == 'approved');
+                                ?>
+                                <tr>
+                                    <td>
+                                        <?php if($can_add_to_cart): ?>
+                                            <input type="checkbox" class="booking-checkbox" value="<?php echo $booking['id']; ?>">
+                                        <?php else: ?>
+                                            <span class="text-muted">-</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?php echo $booking['booking_type'] == 'gym' ? '🏋️ Gym Session' : '👨‍🏫 Personal Trainer'; ?></td>
+                                    <td><?php echo htmlspecialchars($booking['booking_date'] ?? 'N/A'); ?></td>
+                                    <td><?php echo htmlspecialchars($booking['booking_time'] ?? 'N/A'); ?></td>
+                                    <td><?php echo htmlspecialchars($booking['trainer_name'] ?? '-'); ?></td>
+                                    <td>
+                                        <span class="status-badge status-<?php echo $booking['status']; ?>">
+                                            <?php echo ucfirst($booking['status']); ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <?php if($booking['booking_type'] == 'trainer'): ?>
+                                            <?php if($booking['payment_status'] == 'paid'): ?>
+                                                <span class="paid-badge">✓ Paid (RM<?php echo $booking['payment_amount']; ?>)</span>
+                                            <?php elseif($booking['payment_status'] == 'refunded'): ?>
+                                                <span class="refund-completed-badge">↺ Refunded</span>
+                                            <?php else: ?>
+                                                <span class="unpaid-badge">Unpaid (RM50)</span>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <span class="text-muted">-</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if($booking['payment_status'] == 'paid'): ?>
+                                            <a href="receipt.php?booking_id=<?php echo $booking['id']; ?>" class="btn-receipt">🧾 Receipt</a>
+                                        <?php endif; ?>
+                                        
+                                        <?php if($can_refund): ?>
+                                            <a href="request_refund.php?booking_id=<?php echo $booking['id']; ?>" class="btn-refund">↺ Request Refund</a>
+                                        <?php elseif($booking['payment_status'] == 'paid' && $booking['refund_status'] == 'none' && $hours_until_booking <= 24 && $hours_until_booking > 0): ?>
+                                            <span class="text-muted" title="Refund only available more than 24 hours before session">⏰ No refund</span>
+                                        <?php endif; ?>
+                                        
+                                        <?php if($booking['refund_status'] == 'requested'): ?>
+                                            <span class="refund-pending-badge">⏳ Refund Pending</span>
+                                        <?php endif; ?>
+                                        
+                                        <?php if(($booking['status'] == 'pending' || $booking['status'] == 'approved') && $booking['payment_status'] != 'paid' && $booking['payment_status'] != 'refunded'): ?>
+                                            <form action="cancel_booking.php" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to cancel this booking?')">
+                                                <input type="hidden" name="booking_id" value="<?php echo $booking['id']; ?>">
+                                                <input type="hidden" name="booking_type" value="<?php echo $booking['booking_type']; ?>">
+                                                <input type="hidden" name="session_or_slot_id" value="<?php echo $booking['session_or_slot_id']; ?>">
+                                                <button type="submit" name="cancel_booking" class="btn-cancel">Cancel</button>
+                                            </form>
+                                        <?php elseif($booking['status'] == 'pending' || $booking['status'] == 'approved'): ?>
+                                            <span class="text-muted">-</span>
+                                        <?php else: ?>
+                                            <span class="text-muted">-</span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </form>
             </div>
         <?php else: ?>
             <p class="text-muted">No upcoming bookings.</p>
@@ -385,13 +488,49 @@ foreach ($bookings as $booking) {
     </div>
 </div>
 
-<footer>
-    <div class="container">
-        <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">SUPERGYM</div>
-        <p>© SuperGym Booking System. All Rights Reserved.</p>
-    </div>
-</footer>
+<?php include 'footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.getElementById('selectAll').addEventListener('change', function() {
+    var checkboxes = document.querySelectorAll('.booking-checkbox');
+    checkboxes.forEach(function(cb) {
+        cb.checked = document.getElementById('selectAll').checked;
+    });
+});
+
+document.getElementById('addToCartBtn').addEventListener('click', function() {
+    var checkboxes = document.querySelectorAll('.booking-checkbox:checked');
+    var selectedIds = [];
+    checkboxes.forEach(function(cb) {
+        selectedIds.push(cb.value);
+    });
+    
+    if (selectedIds.length === 0) {
+        alert('Please select at least one booking to add to cart.');
+        return;
+    }
+    
+    fetch('add_to_cart.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ booking_ids: selectedIds })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = 'cart.php';
+        } else {
+            alert(data.message || 'Error adding to cart');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred. Please try again.');
+    });
+});
+</script>
 </body>
 </html>

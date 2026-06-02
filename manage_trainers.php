@@ -10,6 +10,18 @@ if ($_SESSION['user_role'] != 'staff') {
 $success = '';
 $error = '';
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$filter_specialty = isset($_GET['filter_specialty']) ? $_GET['filter_specialty'] : '';
+
+$stmt = $pdo->query("
+    SELECT DISTINCT specialty FROM trainers WHERE specialty IS NOT NULL AND specialty != ''
+    UNION SELECT 'Strength Training' as specialty
+    UNION SELECT 'Cardio Training'
+    UNION SELECT 'Yoga'
+    UNION SELECT 'HIIT'
+    UNION SELECT 'Boxing'
+    ORDER BY specialty
+");
+$specialties = $stmt->fetchAll();
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_trainer'])) {
     $name = trim($_POST['name']);
@@ -28,9 +40,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_trainer'])) {
         if ($stmt->fetch()) {
             $error = "Email already exists.";
         } else {
+            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+            
             $pdo->beginTransaction();
             try {
-                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
                 $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, 'trainer')");
                 $stmt->execute([$name, $email, $hashed_password]);
                 $user_id = $pdo->lastInsertId();
@@ -51,19 +64,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_trainer'])) {
 if (isset($_GET['delete'])) {
     $user_id = $_GET['delete'];
     
-    $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
-    $stmt->execute([$user_id]);
-    $user = $stmt->fetch();
-    
-    if ($user && $user['role'] == 'trainer') {
-        $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
-        if ($stmt->execute([$user_id])) {
-            $success = "Trainer deleted successfully!";
-        } else {
-            $error = "Failed to delete trainer.";
-        }
+    if ($user_id == $_SESSION['user_id']) {
+        $error = "You cannot delete your own account.";
     } else {
-        $error = "Cannot delete this user.";
+        $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $user = $stmt->fetch();
+        
+        if ($user && $user['role'] == 'trainer') {
+            $pdo->beginTransaction();
+            try {
+                $stmt = $pdo->prepare("DELETE FROM trainers WHERE user_id = ?");
+                $stmt->execute([$user_id]);
+                
+                $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+                $stmt->execute([$user_id]);
+                
+                $pdo->commit();
+                $success = "Trainer deleted successfully!";
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                $error = "Failed to delete trainer: " . $e->getMessage();
+            }
+        } else {
+            $error = "User is not a trainer.";
+        }
     }
 }
 
@@ -91,31 +116,40 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_trainer'])) {
             $success = "Trainer updated successfully!";
         } catch (Exception $e) {
             $pdo->rollBack();
-            $error = "Failed to update trainer.";
+            $error = "Failed to update trainer: " . $e->getMessage();
         }
     }
 }
 
+$query = "
+    SELECT u.id, u.name, u.email, u.created_at, 
+           t.id as trainer_id, t.specialty, t.bio
+    FROM users u
+    JOIN trainers t ON u.id = t.user_id
+    WHERE u.role = 'trainer'
+";
+
+$params = [];
+
 if (!empty($search)) {
-    $stmt = $pdo->prepare("
-        SELECT u.id, u.name, u.email, u.created_at, t.specialty, t.bio 
-        FROM users u 
-        JOIN trainers t ON u.id = t.user_id 
-        WHERE u.role = 'trainer' AND (u.name LIKE ? OR u.email LIKE ? OR t.specialty LIKE ?)
-        ORDER BY u.created_at DESC
-    ");
-    $stmt->execute(["%$search%", "%$search%", "%$search%"]);
-} else {
-    $stmt = $pdo->prepare("
-        SELECT u.id, u.name, u.email, u.created_at, t.specialty, t.bio 
-        FROM users u 
-        JOIN trainers t ON u.id = t.user_id 
-        WHERE u.role = 'trainer' 
-        ORDER BY u.created_at DESC
-    ");
-    $stmt->execute();
+    $query .= " AND (u.name LIKE ? OR u.email LIKE ? OR t.specialty LIKE ?)";
+    $params[] = "%$search%";
+    $params[] = "%$search%";
+    $params[] = "%$search%";
 }
+
+if (!empty($filter_specialty) && $filter_specialty != 'all') {
+    $query .= " AND t.specialty = ?";
+    $params[] = $filter_specialty;
+}
+
+$query .= " ORDER BY u.created_at DESC";
+$stmt = $pdo->prepare($query);
+$stmt->execute($params);
 $trainers = $stmt->fetchAll();
+
+$stmt = $pdo->query("SELECT COUNT(*) as count FROM users WHERE role = 'trainer'");
+$total_trainers = $stmt->fetch()['count'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -207,12 +241,26 @@ $trainers = $stmt->fetchAll();
             padding-left: 20px;
             border-left: 1px solid #555;
         }
+        .stat-card {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #d6ff00;
+        }
         .table-dark {
             background-color: #1a1a1a;
         }
         .table-dark td, .table-dark th {
             border-color: #333;
             color: #ddd;
+            text-align: center;
+            vertical-align: middle;
         }
         .table-dark th {
             color: #d6ff00;
@@ -238,6 +286,15 @@ $trainers = $stmt->fetchAll();
             color: #fff;
             box-shadow: none;
         }
+        .form-select {
+            background-color: #2a2a2a;
+            border: 1px solid #333;
+            color: #fff;
+        }
+        .form-select:focus {
+            border-color: #d6ff00;
+            box-shadow: none;
+        }
         textarea.form-control {
             resize: vertical;
         }
@@ -254,8 +311,20 @@ $trainers = $stmt->fetchAll();
         .text-muted {
             color: #aaa !important;
         }
-        .search-box {
-            max-width: 300px;
+        .search-filter-bar {
+            background-color: #1a1a1a;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        .specialty-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            background-color: #d6ff00;
+            color: #000;
         }
     </style>
 </head>
@@ -275,6 +344,8 @@ $trainers = $stmt->fetchAll();
                 <li class="nav-item"><a class="nav-link" href="staff_dashboard.php">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_users.php">Users</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_trainers.php" style="color: #d6ff00 !important;">Trainers</a></li>
+                <li class="nav-item"><a class="nav-link" href="equipment.php">Equipment</a></li>
+                <li class="nav-item"><a class="nav-link" href="gym_capacity.php">Gym Capacity</a></li>
                 <li class="nav-item"><a class="nav-link" href="reports.php">Reports</a></li>
                 <li class="nav-item"><a class="nav-link" href="profile.php">My Account</a></li>
             </ul>
@@ -286,33 +357,59 @@ $trainers = $stmt->fetchAll();
 </nav>
 
 <div class="container my-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1>Manage Trainers</h1>
-            <p class="text-muted">View, add, edit, or delete trainer accounts</p>
+    <div class="row mb-4">
+        <div class="col">
+            <h1>Trainer Management</h1>
+            <p class="text-muted">Add, edit, or remove trainer accounts and their specialties</p>
         </div>
-        <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addTrainerModal">+ Add New Trainer</button>
+        <div class="col-auto">
+            <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addTrainerModal">+ Add New Trainer</button>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="stat-card">
+                <div class="stat-number"><?php echo $total_trainers; ?></div>
+                <div class="text-muted">Total Active Trainers</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="search-filter-bar">
+        <form method="GET" class="row g-3">
+            <div class="col-md-5">
+                <label class="form-label">Search</label>
+                <input type="text" name="search" class="form-control" placeholder="Search by name, email or specialty..." value="<?php echo htmlspecialchars($search); ?>">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Filter by Specialty</label>
+                <select name="filter_specialty" class="form-select">
+                    <option value="all" <?php echo $filter_specialty == 'all' ? 'selected' : ''; ?>>All Specialties</option>
+                    <?php foreach($specialties as $spec): ?>
+                        <option value="<?php echo htmlspecialchars($spec['specialty']); ?>" <?php echo $filter_specialty == $spec['specialty'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($spec['specialty']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary-custom w-100">Search</button>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <a href="manage_trainers.php" class="btn btn-outline-custom w-100">Clear</a>
+            </div>
+        </form>
     </div>
 
     <?php if($success): ?>
         <div class="alert alert-success"><?php echo $success; ?></div>
     <?php endif; ?>
-
     <?php if($error): ?>
         <div class="alert alert-danger"><?php echo $error; ?></div>
     <?php endif; ?>
-
-    <div class="row mb-4">
-        <div class="col-md-4">
-            <form method="GET" class="d-flex">
-                <input type="text" name="search" class="form-control me-2" placeholder="Search by name, email or specialty..." value="<?php echo htmlspecialchars($search); ?>">
-                <button type="submit" class="btn btn-primary-custom">Search</button>
-                <?php if($search): ?>
-                    <a href="manage_trainers.php" class="btn btn-outline-custom ms-2">Clear</a>
-                <?php endif; ?>
-            </form>
-        </div>
-    </div>
 
     <div class="table-responsive">
         <table class="table table-dark">
@@ -322,7 +419,8 @@ $trainers = $stmt->fetchAll();
                     <th>Name</th>
                     <th>Email</th>
                     <th>Specialty</th>
-                    <th>Registered Date</th>
+                    <th>Bio</th>
+                    <th>Registered</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -333,7 +431,14 @@ $trainers = $stmt->fetchAll();
                             <td><?php echo $trainer['id']; ?></td>
                             <td><?php echo htmlspecialchars($trainer['name']); ?></td>
                             <td><?php echo htmlspecialchars($trainer['email']); ?></td>
-                            <td><?php echo htmlspecialchars($trainer['specialty'] ?? 'N/A'); ?></td>
+                            <td>
+                                <span class="specialty-badge">
+                                    <?php echo htmlspecialchars($trainer['specialty'] ?? 'N/A'); ?>
+                                </span>
+                            </td>
+                            <td>
+                                <?php echo htmlspecialchars(substr($trainer['bio'] ?? 'No bio available', 0, 50)); ?>...
+                            </td>
                             <td><?php echo date('d M Y', strtotime($trainer['created_at'])); ?></td>
                             <td>
                                 <button class="btn btn-warning-custom" data-bs-toggle="modal" data-bs-target="#editTrainerModal" 
@@ -342,13 +447,13 @@ $trainers = $stmt->fetchAll();
                                     data-email="<?php echo htmlspecialchars($trainer['email']); ?>"
                                     data-specialty="<?php echo htmlspecialchars($trainer['specialty'] ?? ''); ?>"
                                     data-bio="<?php echo htmlspecialchars($trainer['bio'] ?? ''); ?>">Edit</button>
-                                <a href="?delete=<?php echo $trainer['id']; ?>" class="btn btn-danger-custom" onclick="return confirm('Are you sure you want to delete this trainer?')">Delete</a>
+                                <a href="?delete=<?php echo $trainer['id']; ?>" class="btn btn-danger-custom" onclick="return confirm('Are you sure you want to delete this trainer? This will also remove all their booked slots.')">Delete</a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="6" class="text-center text-muted">No trainers found.</td>
+                        <td colspan="7" class="text-center text-muted">No trainers found.<?php echo htmlspecialchars($search); ?></td>
                     </tr>
                 <?php endif; ?>
             </tbody>
@@ -376,15 +481,24 @@ $trainers = $stmt->fetchAll();
                     <div class="mb-3">
                         <label class="form-label">Password *</label>
                         <input type="password" name="password" class="form-control" required>
-                        <small class="text-muted">Must contain: Uppercase, Lowercase, Number, Special char, Min 8 chars</small>
+                        <small class="text-muted">Min 8 chars: Uppercase, Lowercase, Number, Special char</small>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Specialty</label>
-                        <input type="text" name="specialty" class="form-control" placeholder="e.g., Strength Training, Yoga, Cardio">
+                        <label class="form-label">Specialty / Role Tag</label>
+                        <select name="specialty" class="form-select">
+                            <option value="🔥 Fat Burn Training">🔥 Fat Burn Training</option>
+                            <option value="💪 Body Shaping">💪 Body Shaping</option>
+                            <option value="🧘 Yoga & Stretch">🧘 Yoga & Stretch</option>
+                            <option value="⚡ HIIT Training">⚡ HIIT Training</option>
+                            <option value="🏋️ Strength Training">🏋️ Strength Training</option>
+                            <option value="🥊 Boxing & Kickboxing">🥊 Boxing & Kickboxing</option>
+                            <option value="🏃 Cardio Training">🏃 Cardio Training</option>
+                            <option value="🎯 Functional Training">🎯 Functional Training</option>
+                        </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Bio</label>
-                        <textarea name="bio" class="form-control" rows="3" placeholder="Trainer's background and experience..."></textarea>
+                        <label class="form-label">Bio / Description</label>
+                        <textarea name="bio" class="form-control" rows="3" placeholder="Trainer's background, experience, and qualifications..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -415,11 +529,20 @@ $trainers = $stmt->fetchAll();
                         <input type="email" name="email" id="edit_email" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Specialty</label>
-                        <input type="text" name="specialty" id="edit_specialty" class="form-control">
+                        <label class="form-label">Specialty / Role Tag</label>
+                        <select name="specialty" id="edit_specialty" class="form-select">
+                            <option value="🔥 Fat Burn Training">🔥 Fat Burn Training</option>
+                            <option value="💪 Body Shaping">💪 Body Shaping</option>
+                            <option value="🧘 Yoga & Stretch">🧘 Yoga & Stretch</option>
+                            <option value="⚡ HIIT Training">⚡ HIIT Training</option>
+                            <option value="🏋️ Strength Training">🏋️ Strength Training</option>
+                            <option value="🥊 Boxing & Kickboxing">🥊 Boxing & Kickboxing</option>
+                            <option value="🏃 Cardio Training">🏃 Cardio Training</option>
+                            <option value="🎯 Functional Training">🎯 Functional Training</option>
+                        </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Bio</label>
+                        <label class="form-label">Bio / Description</label>
                         <textarea name="bio" id="edit_bio" class="form-control" rows="3"></textarea>
                     </div>
                 </div>
@@ -443,14 +566,7 @@ $trainers = $stmt->fetchAll();
         document.getElementById('edit_bio').value = button.getAttribute('data-bio');
     });
 </script>
-
-<footer>
-    <div class="container">
-        <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">SUPERGYM</div>
-        <p>© SuperGym Booking System. All Rights Reserved.</p>
-    </div>
-</footer>
-
+<?php include 'footer.php'; ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
