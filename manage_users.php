@@ -218,6 +218,8 @@ $total_staff = $stmt->fetch()['count'];
         }
         .table-dark {
             background-color: #1a1a1a;
+            border-radius: 10px;
+            overflow: hidden;
         }
         .table-dark td, .table-dark th {
             border-color: #333;
@@ -314,6 +316,7 @@ $total_staff = $stmt->fetch()['count'];
                 <li class="nav-item"><a class="nav-link" href="staff_dashboard.php">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_users.php" style="color: #d6ff00 !important;">Users</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_trainers.php">Trainers</a></li>
+                <li class="nav-item"><a class="nav-link" href="manage_bookings.php">Bookings</a></li>
                 <li class="nav-item"><a class="nav-link" href="equipment.php">Equipment</a></li>
                 <li class="nav-item"><a class="nav-link" href="gym_capacity.php">Gym Capacity</a></li>
                 <li class="nav-item"><a class="nav-link" href="reports.php">Reports</a></li>

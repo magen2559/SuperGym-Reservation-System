@@ -138,14 +138,14 @@ ob_end_flush();
             color: #d6ff00;
         }
         .content-card {
-            background-color: #1a1a1a;
+            background-color: #d6ff00;
             border: 1px solid #333;
             border-radius: 15px;
             padding: 25px;
             margin-bottom: 30px;
         }
         .content-card h3 {
-            color: #d6ff00;
+            color: #000;
             margin-bottom: 20px;
             padding-bottom: 10px;
             border-bottom: 1px solid #333;

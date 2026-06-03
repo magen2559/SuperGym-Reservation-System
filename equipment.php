@@ -224,6 +224,8 @@ while ($row = $stmt->fetch()) {
         }
         .table-dark {
             background-color: #1a1a1a;
+            border-radius: 10px;
+            overflow: hidden;
         }
         .table-dark td, .table-dark th {
             border-color: #333;
@@ -327,6 +329,7 @@ while ($row = $stmt->fetch()) {
                 <li class="nav-item"><a class="nav-link" href="staff_dashboard.php">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_users.php">Users</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_trainers.php">Trainers</a></li>
+                <li class="nav-item"><a class="nav-link" href="manage_bookings.php">Bookings</a></li>
                 <li class="nav-item"><a class="nav-link" href="equipment.php" style="color: #d6ff00 !important;">Equipment</a></li>
                 <li class="nav-item"><a class="nav-link" href="gym_capacity.php">Gym Capacity</a></li>
                 <li class="nav-item"><a class="nav-link" href="reports.php">Reports</a></li>

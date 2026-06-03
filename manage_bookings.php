@@ -207,7 +207,8 @@ $pending_count = $stmt->fetch()['count'];
                 <li class="nav-item"><a class="nav-link" href="staff_dashboard.php">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_users.php">Users</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_trainers.php">Trainers</a></li>
-                <li class="nav-item"><a class="nav-link" href="manage_bookings.php" style="color: #d6ff00 !important;">Gym Bookings</a></li>
+                <li class="nav-item"><a class="nav-link" href="manage_bookings.php" style="color: #d6ff00 !important;">Bookings</a></li>
+                <li class="nav-item"><a class="nav-link" href="equipment.php">Equipment</a></li>
                 <li class="nav-item"><a class="nav-link" href="gym_capacity.php">Gym Capacity</a></li>
                 <li class="nav-item"><a class="nav-link" href="reports.php">Reports</a></li>
                 <li class="nav-item"><a class="nav-link" href="profile.php">My Account</a></li>

@@ -377,7 +377,7 @@ foreach ($bookings as $booking) {
 
     <div class="content-card">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h3 class="mb-0">📅 All Bookings</h3>
+            <h3 class="mb-0">📅 Upcoming Bookings</h3>
             <button type="button" id="addToCartBtn" class="btn-add-to-cart">➕ Add Selected to Cart</button>
         </div>
         
