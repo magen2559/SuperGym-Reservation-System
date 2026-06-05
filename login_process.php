@@ -33,6 +33,20 @@ if ($_SERVER['REQUEST_METHOD'] == "POST" && isset($_POST['login'])) {
         $_SESSION['user_email'] = $user['email'];
         $_SESSION['user_role'] = $user['role'];
         
+        $redirect = isset($_POST['redirect']) ? $_POST['redirect'] : '';
+        $slot_id = isset($_POST['slot_id']) ? $_POST['slot_id'] : '';
+        
+        if (!empty($redirect) && !empty($slot_id)) {
+            unset($_SESSION['login_redirect']);
+            unset($_SESSION['booking_slot_id']);
+            header("Location: " . $redirect . "?slot_id=" . $slot_id);
+            exit();
+        } elseif (!empty($redirect)) {
+            unset($_SESSION['login_redirect']);
+            header("Location: " . $redirect);
+            exit();
+        }
+        
         if ($user['role'] == 'member') {
             echo "<script>
                 alert('Login successful! Welcome " . addslashes($user['name']) . "');

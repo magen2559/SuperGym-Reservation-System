@@ -384,7 +384,7 @@ function showSlots(trainerId, trainerName, specialty) {
                             </div>
                             ${data.is_logged_in ? 
                                 `<a href="book_trainer.php?slot_id=${slot.id}" class="btn-book-slot">Book Now</a>` :
-                                `<a href="register.php" class="btn-book-slot">Join to Book</a>`
+                                `<a href="login.php?redirect=book_trainer.php&slot_id=${slot.id}" class="btn-book-slot">Join to Book</a>`
                             }
                         </div>
                     `;

@@ -8,6 +8,8 @@ if ($_SESSION['user_role'] != 'member') {
 }
 
 $member_id = $_SESSION['user_id'];
+$preselected_slot_id = isset($_GET['slot_id']) ? (int)$_GET['slot_id'] : 0;
+$auto_select_message = '';
 $success_message = '';
 $error_message = '';
 
@@ -61,10 +63,29 @@ $stmt = $pdo->prepare("
     JOIN users u ON u.id = t.user_id
     WHERE (ts.slot_date > CURDATE()) 
        OR (ts.slot_date = CURDATE() AND ts.end_time > CURTIME())
-    ORDER BY ts.slot_date, ts.start_time
+    ORDER BY u.name, ts.slot_date, ts.start_time
 ");
 $stmt->execute([$member_id]);
 $slots = $stmt->fetchAll();
+
+$grouped_slots = [];
+foreach ($slots as $slot) {
+    $trainer_id = $slot['trainer_id'];
+    $trainer_name = $slot['trainer_name'];
+    if (!isset($grouped_slots[$trainer_id])) {
+        $grouped_slots[$trainer_id] = [
+            'trainer_name' => $trainer_name,
+            'specialty' => $slot['specialty'],
+            'bio' => $slot['bio'],
+            'slots' => []
+        ];
+    }
+    $grouped_slots[$trainer_id]['slots'][] = $slot;
+}
+
+if ($preselected_slot_id > 0) {
+    $auto_select_message = "You have been redirected to book this trainer slot.";
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -108,45 +129,6 @@ $slots = $stmt->fetchAll();
         .nav-link:hover {
             color: #d6ff00 !important;
         }
-        .btn-primary-custom {
-            background-color: #d6ff00;
-            color: #000;
-            font-weight: bold;
-            border: none;
-            padding: 8px 20px;
-            border-radius: 10px;
-        }
-        .btn-primary-custom:hover {
-            background-color: #c0e800;
-            color: #000;
-        }
-        .btn-disabled {
-            background-color: #6b7280;
-            color: #aaa;
-            font-weight: bold;
-            padding: 8px 20px;
-            border-radius: 10px;
-            border: none;
-            cursor: not-allowed;
-        }
-        .btn-booked {
-            background-color: #22c55e;
-            color: #fff;
-            font-weight: bold;
-            padding: 8px 20px;
-            border-radius: 10px;
-            border: none;
-            cursor: not-allowed;
-        }
-        .btn-ongoing {
-            background-color: #f59e0b;
-            color: #000;
-            font-weight: bold;
-            padding: 8px 20px;
-            border-radius: 10px;
-            border: none;
-            cursor: not-allowed;
-        }
         .btn-outline-custom {
             border: 2px solid #d6ff00;
             color: #d6ff00;
@@ -156,6 +138,10 @@ $slots = $stmt->fetchAll();
             text-decoration: none;
             background-color: transparent;
         }
+        .btn-outline-custom:hover {
+            background-color: #d6ff00;
+            color: #000;
+        }
         .welcome-text {
             color: #ddd;
             font-size: 14px;
@@ -163,8 +149,28 @@ $slots = $stmt->fetchAll();
             padding-left: 20px;
             border-left: 1px solid #555;
         }
-        .trainer-card {
+        .trainer-group {
+            margin-bottom: 40px;
+            padding: 20px;
             background-color: #1a1a1a;
+            border-radius: 15px;
+            border: 1px solid #333;
+        }
+        .trainer-header {
+            border-bottom: 1px solid #333;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .trainer-header h3 {
+            color: #d6ff00;
+            margin-bottom: 5px;
+        }
+        .trainer-header .specialty {
+            color: #aaa;
+            font-size: 0.85rem;
+        }
+        .trainer-card {
+            background-color: #EEF527;
             border: 1px solid #333;
             border-radius: 15px;
             transition: transform 0.3s;
@@ -172,16 +178,65 @@ $slots = $stmt->fetchAll();
         }
         .trainer-card:hover {
             transform: translateY(-5px);
-            border-color: #d6ff00;
+            border-color: #fff;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
         }
-        .trainer-name {
-            color: #d6ff00;
-            font-size: 1.2rem;
+        .trainer-card .mb-0 {
+            color: #000;
+        }
+        .trainer-card .text-warning {
+            color: #000 !important;
+        }
+        .trainer-card .btn-primary-custom {
+            background-color: #000;
+            color: #EEF527;
             font-weight: bold;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 10px;
+            width: 100%;
         }
-        .specialty {
-            color: #aaa;
-            font-size: 0.85rem;
+        .trainer-card .btn-primary-custom:hover {
+            background-color: #333;
+            color: #EEF527;
+        }
+        .trainer-card .btn-disabled {
+            background-color: #999;
+            color: #333;
+            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 10px;
+            border: none;
+            cursor: not-allowed;
+            width: 100%;
+        }
+        .trainer-card .btn-booked {
+            background-color: #22c55e;
+            color: #fff;
+            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 10px;
+            border: none;
+            cursor: not-allowed;
+            width: 100%;
+        }
+        .trainer-card .btn-ongoing {
+            background-color: #f59e0b;
+            color: #000;
+            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 10px;
+            border: none;
+            cursor: not-allowed;
+            width: 100%;
+        }
+        .trainer-card.highlight {
+            border: 3px solid #000;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+            transform: scale(1.02);
+        }
+        .slot-booked {
+            opacity: 0.8;
         }
         footer {
             background-color: #0a0a0a;
@@ -195,10 +250,6 @@ $slots = $stmt->fetchAll();
         }
         .text-muted {
             color: #aaa !important;
-        }
-        .slot-booked {
-            opacity: 0.7;
-            background-color: #1a1a1a;
         }
     </style>
 </head>
@@ -237,6 +288,10 @@ $slots = $stmt->fetchAll();
         </div>
     </div>
 
+    <?php if($auto_select_message): ?>
+        <div class="alert alert-info"><?php echo $auto_select_message; ?></div>
+    <?php endif; ?>
+
     <?php if($success_message): ?>
         <div class="alert alert-success"><?php echo $success_message; ?></div>
     <?php endif; ?>
@@ -248,62 +303,75 @@ $slots = $stmt->fetchAll();
     <?php if(count($slots) == 0): ?>
         <div class="alert alert-warning">No trainer slots available at the moment. Please check back later.</div>
     <?php else: ?>
-        <div class="row">
-            <?php foreach($slots as $slot): ?>
-                <?php
-                $is_user_booked = ($slot['user_booked'] > 0);
-                $is_full = ($slot['total_booked'] > 0 && $slot['is_available'] == 0);
-                
-                $isOngoing = false;
-                $today = date('Y-m-d');
-                $currentTime = date('H:i:s');
-                if ($slot['slot_date'] == $today) {
-                    if ($slot['start_time'] <= $currentTime && $slot['end_time'] >= $currentTime) {
-                        $isOngoing = true;
-                    }
-                }
-                ?>
-                <div class="col-md-4 mb-4">
-                    <div class="trainer-card p-4 <?php echo $is_user_booked ? 'slot-booked' : ''; ?>">
-                        <div class="mb-3">
-                            <div class="trainer-name"><?php echo htmlspecialchars($slot['trainer_name']); ?></div>
-                            <div class="specialty"><?php echo htmlspecialchars($slot['specialty'] ?? 'Fitness Coach'); ?></div>
-                            <?php if(!empty($slot['bio'])): ?>
-                                <p class="small text-muted mt-2"><?php echo htmlspecialchars(substr($slot['bio'], 0, 80)); ?>...</p>
-                            <?php endif; ?>
-                        </div>
-                        <div class="border-top border-secondary pt-3 mt-2">
-                            <p class="mb-0">📅 <?php echo date('D, M j', strtotime($slot['slot_date'])); ?></p>
-                            <p class="text-warning fw-bold mb-0">⏰ <?php echo date('g:i A', strtotime($slot['start_time'])); ?> - <?php echo date('g:i A', strtotime($slot['end_time'])); ?></p>
-                        </div>
-                        
-                        <?php if($isOngoing): ?>
-                            <div class="mt-3 text-center">
-                                <button class="btn-ongoing w-100" disabled>⏳ Ongoing</button>
-                            </div>
-                        <?php elseif($is_user_booked): ?>
-                            <div class="mt-3 text-center">
-                                <button class="btn-booked w-100" disabled>✓ Already Booked (Pending)</button>
-                            </div>
-                        <?php elseif($is_full): ?>
-                            <div class="mt-3 text-center">
-                                <button class="btn-disabled w-100" disabled>✗ Slot Unavailable</button>
-                            </div>
-                        <?php else: ?>
-                            <form method="POST" class="mt-3">
-                                <input type="hidden" name="slot_id" value="<?php echo $slot['id']; ?>">
-                                <button type="submit" name="book_trainer" class="btn btn-primary-custom w-100">Book This Trainer</button>
-                            </form>
-                        <?php endif; ?>
-                    </div>
+        <?php foreach($grouped_slots as $trainer_id => $trainer_data): ?>
+            <div class="trainer-group">
+                <div class="trainer-header">
+                    <h3>👨‍🏫 <?php echo htmlspecialchars($trainer_data['trainer_name']); ?></h3>
+                    <p class="specialty mb-1"><?php echo htmlspecialchars($trainer_data['specialty'] ?? 'Fitness Coach'); ?></p>
+                    <?php if(!empty($trainer_data['bio'])): ?>
+                        <p class="text-muted small mb-0"><?php echo htmlspecialchars(substr($trainer_data['bio'], 0, 100)); ?>...</p>
+                    <?php endif; ?>
                 </div>
-            <?php endforeach; ?>
-        </div>
+                <div class="row">
+                    <?php foreach($trainer_data['slots'] as $slot): ?>
+                        <?php
+                        $is_user_booked = ($slot['user_booked'] > 0);
+                        $is_full = ($slot['total_booked'] > 0 && $slot['is_available'] == 0);
+                        $is_highlight = ($preselected_slot_id == $slot['id']);
+                        
+                        $isOngoing = false;
+                        $today = date('Y-m-d');
+                        $currentTime = date('H:i:s');
+                        if ($slot['slot_date'] == $today) {
+                            if ($slot['start_time'] <= $currentTime && $slot['end_time'] >= $currentTime) {
+                                $isOngoing = true;
+                            }
+                        }
+                        ?>
+                        <div class="col-md-4 mb-4">
+                            <div class="trainer-card p-4 <?php echo $is_user_booked ? 'slot-booked' : ''; ?> <?php echo $is_highlight ? 'highlight' : ''; ?>">
+                                <div class="mb-2">
+                                    <p class="mb-0">📅 <?php echo date('D, M j', strtotime($slot['slot_date'])); ?></p>
+                                    <p class="fw-bold mb-0" style="color: #000;">⏰ <?php echo date('g:i A', strtotime($slot['start_time'])); ?> - <?php echo date('g:i A', strtotime($slot['end_time'])); ?></p>
+                                </div>
+                                
+                                <?php if($isOngoing): ?>
+                                    <div class="mt-3 text-center">
+                                        <button class="btn-ongoing w-100" disabled>⏳ Ongoing</button>
+                                    </div>
+                                <?php elseif($is_user_booked): ?>
+                                    <div class="mt-3 text-center">
+                                        <button class="btn-booked w-100" disabled>✓ Already Booked</button>
+                                    </div>
+                                <?php elseif($is_full): ?>
+                                    <div class="mt-3 text-center">
+                                        <button class="btn-disabled w-100" disabled>✗ Slot Unavailable</button>
+                                    </div>
+                                <?php else: ?>
+                                    <form method="POST" class="mt-3">
+                                        <input type="hidden" name="slot_id" value="<?php echo $slot['id']; ?>">
+                                        <button type="submit" name="book_trainer" class="btn btn-primary-custom">Book Now</button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endforeach; ?>
     <?php endif; ?>
 </div>
 
 <?php include 'footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var highlighted = document.querySelector('.trainer-card.highlight');
+        if (highlighted) {
+            highlighted.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    });
+</script>
 </body>
 </html>
