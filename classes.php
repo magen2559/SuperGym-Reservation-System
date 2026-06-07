@@ -1,15 +1,24 @@
 <?php
+session_start();
 require_once 'include/db.php';
+
+$selected_date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
 
 $stmt = $pdo->prepare("
     SELECT gs.*, 
            (gs.max_capacity - gs.current_bookings) as available_spots
     FROM gym_sessions gs
-    WHERE gs.session_date >= CURDATE()
-    ORDER BY gs.session_date, gs.start_time
+    WHERE gs.session_date = ?
+      AND (
+          gs.session_date > CURDATE()
+          OR (gs.session_date = CURDATE() AND gs.start_time > CURTIME())
+      )
+    ORDER BY gs.start_time
 ");
-$stmt->execute();
+$stmt->execute([$selected_date]);
 $sessions = $stmt->fetchAll();
+
+$has_data = count($sessions) > 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -78,6 +87,14 @@ $sessions = $stmt->fetchAll();
             background-color: #d6ff00;
             color: #000;
         }
+        .btn-active {
+            background-color: #d6ff00;
+            color: #000;
+            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 10px;
+            text-decoration: none;
+        }
         .btn-disabled {
             background-color: #444;
             color: #aaa;
@@ -86,6 +103,17 @@ $sessions = $stmt->fetchAll();
             border-radius: 10px;
             border: none;
             cursor: not-allowed;
+        }
+        .btn-ongoing {
+            background-color: #6b7280;
+            color: #fff;
+            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 10px;
+            border: none;
+            cursor: not-allowed;
+            width: 100%;
+            margin-top: 10px;
         }
         .class-card {
             background-color: #1a1a1a;
@@ -115,6 +143,13 @@ $sessions = $stmt->fetchAll();
             padding: 60px 0;
             text-align: center;
             margin-bottom: 40px;
+        }
+        .date-selector {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
         }
         footer {
             background-color: #0a0a0a;
@@ -165,13 +200,44 @@ $sessions = $stmt->fetchAll();
 </div>
 
 <div class="container my-5">
-    <?php if(count($sessions) == 0): ?>
-        <div class="alert alert-warning">No upcoming classes available at the moment. Please check back later.</div>
+    <div class="date-selector">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label">Select Date</label>
+                <input type="date" id="datePicker" class="form-control" value="<?php echo $selected_date; ?>">
+            </div>
+            <div class="col-md-3">
+                <button id="goToDate" class="btn btn-primary-custom w-100">View Classes</button>
+            </div>
+            <div class="col-md-4">
+                <div class="d-flex gap-2 justify-content-end">
+                    <a href="?date=<?php echo date('Y-m-d'); ?>" class="btn <?php echo $selected_date == date('Y-m-d') ? 'btn-active' : 'btn-outline-custom'; ?>">Today</a>
+                    <a href="?date=<?php echo date('Y-m-d', strtotime('+1 day')); ?>" class="btn <?php echo $selected_date == date('Y-m-d', strtotime('+1 day')) ? 'btn-active' : 'btn-outline-custom'; ?>">Tomorrow</a>
+                    <a href="?date=<?php echo date('Y-m-d', strtotime('+2 day')); ?>" class="btn btn-outline-custom">+2 Days</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h3 class="mb-3">📅 Classes for <?php echo date('D, M j, Y', strtotime($selected_date)); ?></h3>
+
+    <?php if(!$has_data): ?>
+        <div class="alert alert-warning">No classes available for <?php echo date('D, M j, Y', strtotime($selected_date)); ?>. Please select another date.</div>
     <?php else: ?>
         <div class="row">
             <?php foreach($sessions as $session): ?>
                 <?php 
                 $available = $session['available_spots'];
+                
+                $isOngoing = false;
+                $today = date('Y-m-d');
+                $currentTime = date('H:i:s');
+                if ($session['session_date'] == $today) {
+                    if ($session['start_time'] <= $currentTime && $session['end_time'] >= $currentTime) {
+                        $isOngoing = true;
+                    }
+                }
+                
                 if ($available <= 0) {
                     $spots_class = 'spots-full';
                     $spots_text = 'Fully Booked';
@@ -196,17 +262,21 @@ $sessions = $stmt->fetchAll();
                             <span class="available-spots <?php echo $spots_class; ?>"><?php echo $spots_text; ?></span>
                         </div>
                         
-                        <?php if(isset($_SESSION['user_id'])): ?>
-                            <?php if($available > 0): ?>
-                                <a href="book_gym.php" class="btn btn-primary-custom w-100 mt-2">Book Now</a>
-                            <?php else: ?>
-                                <button class="btn-disabled w-100 mt-2" disabled>Fully Booked</button>
-                            <?php endif; ?>
+                        <?php if($isOngoing): ?>
+                            <button class="btn-ongoing w-100 mt-2" disabled>⏳ Ongoing</button>
                         <?php else: ?>
-                            <div class="text-center mt-2">
-                                <a href="register.php" class="btn btn-primary-custom w-100">Join Membership to Book</a>
-                                <small class="text-muted d-block mt-2">Register as a member to book this session</small>
-                            </div>
+                            <?php if(isset($_SESSION['user_id'])): ?>
+                                <?php if($available > 0): ?>
+                                    <a href="book_gym.php" class="btn btn-primary-custom w-100 mt-2">Book Now</a>
+                                <?php else: ?>
+                                    <button class="btn-disabled w-100 mt-2" disabled>Fully Booked</button>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <div class="text-center mt-2">
+                                    <a href="login.php?redirect=book_gym.php" class="btn btn-primary-custom">Join Membership to Book</a>
+                                    <small class="text-muted d-block mt-2">Register as a member to book this session</small>
+                                </div>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -215,13 +285,16 @@ $sessions = $stmt->fetchAll();
     <?php endif; ?>
 </div>
 
-<footer>
-    <div class="container">
-        <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">SUPERGYM</div>
-        <p>© SuperGym Booking System. All Rights Reserved.</p>
-    </div>
-</footer>
+<?php include 'footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.getElementById('goToDate').addEventListener('click', function() {
+        var selectedDate = document.getElementById('datePicker').value;
+        if (selectedDate) {
+            window.location.href = '?date=' + selectedDate;
+        }
+    });
+</script>
 </body>
 </html>

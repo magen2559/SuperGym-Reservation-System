@@ -26,40 +26,108 @@ $stmt = $pdo->prepare("
            CASE 
                WHEN b.booking_type = 'gym' THEN gs.id
                WHEN b.booking_type = 'trainer' THEN ts.id
-           END as session_or_slot_id,
-           b.payment_status,
-           b.payment_amount,
-           b.member_action,
-           b.refund_status,
-           b.refund_reason
+           END as session_or_slot_id
     FROM bookings b
     LEFT JOIN gym_sessions gs ON b.gym_session_id = gs.id
     LEFT JOIN trainer_slots ts ON b.trainer_slot_id = ts.id
-    LEFT JOIN trainers t ON ts.trainer_id = t.id
+    LEFT JOIN trainers t ON ts.trainer_id = t.trainer_id
     LEFT JOIN users u ON t.user_id = u.id
-    WHERE b.member_id = ?
-    ORDER BY booking_date DESC, booking_time ASC
+   WHERE b.member_id = ?
+AND (
+    (
+        CASE 
+            WHEN b.booking_type = 'gym' THEN CONCAT(gs.session_date, ' ', gs.end_time)
+            WHEN b.booking_type = 'trainer' THEN CONCAT(ts.slot_date, ' ', ts.end_time)
+        END
+    ) >= NOW()
+    OR b.refund_status IN ('requested', 'approved', 'rejected')
+)
+AND b.status != 'completed'
+ORDER BY booking_date DESC, booking_time ASC
+
 ");
 $stmt->execute([$member_id]);
 $bookings = $stmt->fetchAll();
 
 $upcoming_bookings = [];
-$past_bookings = [];
 
 foreach ($bookings as $booking) {
-    $booking_date = $booking['booking_date'];
-    $today = date('Y-m-d');
-    
-if (
-    ($booking_date >= $today && $booking['status'] != 'completed')
-    ||
-    ($booking['booking_type'] == 'trainer' && $booking['status'] == 'cancelled' && $booking['member_action'] == 'refund_available')
-) {        $upcoming_bookings[] = $booking;
-    } else {
-        $past_bookings[] = $booking;
+
+    $bookingDate = $booking['booking_date'];
+    $bookingTime = $booking['booking_time'];
+
+    if (!$bookingDate || !$bookingTime) {
+        continue;
     }
+
+    $timeParts = explode(' - ', $bookingTime);
+    $endTime = trim($timeParts[1] ?? $timeParts[0]);
+
+    $bookingEndTimestamp = strtotime($bookingDate . ' ' . $endTime);
+    $nowTimestamp = time();
+
+  $showCancelledForRefund = (
+    $booking['booking_type'] == 'trainer'
+    &&
+    $booking['status'] == 'cancelled'
+    &&
+    (
+        ($booking['payment_status'] ?? '') == 'paid'
+        ||
+        ($booking['payment_status'] ?? '') == 'refunded'
+    )
+    &&
+    in_array(($booking['refund_status'] ?? ''), [
+        'not_requested',
+        'requested',
+        'refunded',
+        'rejected',
+        'not_allowed'
+    ])
+);
+
+if (
+    $bookingEndTimestamp >= $nowTimestamp
+    &&
+    (
+        !in_array($booking['status'], ['cancelled', 'completed'])
+        ||
+        $showCancelledForRefund
+    )
+) {
+    $upcoming_bookings[] = $booking;
+}
+
+if (
+    $bookingEndTimestamp >= $nowTimestamp
+    &&
+    (
+        !in_array($booking['status'], ['cancelled', 'completed'])
+        ||
+        $showCancelledForRefund
+    )
+) {
+    $upcoming_bookings[] = $booking;
+}
+}
+
+function canRefundByTime($bookingDate, $bookingTime) {
+    if (!$bookingDate || !$bookingTime) {
+        return false;
+    }
+
+    $parts = explode(' - ', $bookingTime);
+    $startTime = trim($parts[0]);
+
+    $sessionTimestamp = strtotime($bookingDate . ' ' . $startTime);
+    $now = time();
+
+    $hoursBefore = ($sessionTimestamp - $now) / 3600;
+
+    return $hoursBefore >= 24;
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -73,11 +141,13 @@ if (
             background-color: #111;
             color: #fff;
         }
+
         .navbar {
             background-color: #1a1a1a;
             border-bottom: 1px solid #333;
             padding: 6px;
         }
+
         .navbar .container {
             max-width: 100%;
             width: 100%;
@@ -85,36 +155,34 @@ if (
             padding-right: 0;
             margin: 0;
         }
+
         .navbar-brand,
-        .navbar-brand:hover,
-        .navbar-brand:focus,
-        .navbar-brand:active {
+        .navbar-brand:hover {
             font-weight: bold;
             font-size: 30px;
             color: #d6ff00 !important;
             text-decoration: none;
             padding-left: 15px;
         }
+
         .nav-link {
             color: #fff !important;
             font-weight: bold;
             text-transform: uppercase;
         }
+
         .nav-link:hover {
             color: #d6ff00 !important;
         }
-        .btn-primary-custom {
-            background-color: #d6ff00;
-            color: #000;
-            font-weight: bold;
-            border: none;
-            padding: 8px 20px;
-            border-radius: 10px;
+
+        .welcome-text {
+            color: #ddd;
+            font-size: 14px;
+            margin-left: 20px;
+            padding-left: 20px;
+            border-left: 1px solid #555;
         }
-        .btn-primary-custom:hover {
-            background-color: #c0e800;
-            color: #000;
-        }
+
         .btn-outline-custom {
             border: 2px solid #d6ff00;
             color: #d6ff00;
@@ -124,141 +192,135 @@ if (
             text-decoration: none;
             background-color: transparent;
         }
+
         .btn-outline-custom:hover {
             background-color: #d6ff00;
             color: #000;
         }
-        .btn-cancel {
-            background-color: #ef4444;
-            color: #fff;
-            font-weight: bold;
-            border: none;
-            padding: 5px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 12px;
-            text-decoration: none;
-            display: inline-block;
-            margin: 2px;
+
+        .main-container {
+            max-width: 1280px;
+            margin: auto;
         }
-        .btn-cancel:hover {
-            background-color: #dc2626;
-            color: #fff;
-            text-decoration: none;
-        }
-        .btn-pay {
-            background-color: #d6ff00;
-            color: #000;
-            font-weight: bold;
-            padding: 5px 12px;
-            border-radius: 5px;
-            text-decoration: none;
-            font-size: 12px;
-            margin: 2px;
-            display: inline-block;
-        }
-        .btn-pay:hover {
-            background-color: #c0e800;
-            color: #000;
-            text-decoration: none;
-        }
-        .paid-badge {
-            display: inline-block;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
-            background-color: #22c55e;
-            color: #fff;
-        }
-        .unpaid-badge {
-            display: inline-block;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
-            background-color: #6b7280;
-            color: #fff;
-        }
-        .welcome-text {
-            color: #ddd;
-            font-size: 14px;
-            margin-left: 20px;
-            padding-left: 20px;
-            border-left: 1px solid #555;
-        }
-        .table-dark td, 
-        .table-dark th {
-            text-align: center;
-            vertical-align: middle;
-        }
-        .table-dark {
-            background-color: #1a1a1a;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        .table-dark td, .table-dark th {
-            border-color: #333;
-            color: #ddd;
-        }
-        .table-dark th {
-            color: #d6ff00;
-        }
-        .status-badge {
-            display: inline-block;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
-        }
-        .status-pending {
-            background-color: #f59e0b;
-            color: #000;
-        }
-        .status-approved {
-            background-color: #22c55e;
-            color: #fff;
-        }
-        .status-rejected {
-            background-color: #ef4444;
-            color: #fff;
-        }
-        .status-cancelled {
-            background-color: #6b7280;
-            color: #fff;
-        }
-        .status-completed {
-            background-color: #3b82f6;
-            color: #fff;
-        }
+
         .content-card {
-            background-color: #EEF527;
-            border: 1px solid #333;
-            border-radius: 15px;
+            background-color: #eef527;
+            border-radius: 12px;
             padding: 25px;
             margin-bottom: 30px;
         }
+
         .content-card h3 {
             color: #000;
+            font-weight: bold;
             margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #333;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(0,0,0,0.3);
         }
-        footer {
+
+        .table-dark {
+            background-color: #1f2529;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 0;
+        }
+
+        .table-dark th {
+            color: #d6ff00;
+            text-align: center;
+            vertical-align: middle;
+            border-color: #333;
+            font-size: 14px;
+        }
+
+        .table-dark td {
+            color: #fff;
+            text-align: center;
+            vertical-align: middle;
+            border-color: #333;
+            font-size: 14px;
+        }
+
+        .status-badge,
+        .paid-badge,
+        .unpaid-badge,
+        .refund-badge {
+            display: inline-block;
+            padding: 6px 13px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin: 2px;
+        }
+
+        .status-pending { background-color: #f59e0b; color: #000; }
+        .status-approved { background-color: #22c55e; color: #fff; }
+        .status-rejected { background-color: #ef4444; color: #fff; }
+        .status-cancelled { background-color: #6b7280; color: #fff; }
+        .status-completed { background-color: #3b82f6; color: #fff; }
+
+        .paid-badge { background-color: #22c55e; color: #fff; }
+        .unpaid-badge { background-color: #6b7280; color: #fff; }
+        .refund-badge { background-color: #6b7280; color: #fff; }
+
+        .btn-cancel,
+        .btn-receipt,
+        .btn-refund,
+        .btn-change {
+            border: none;
+            padding: 6px 14px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: bold;
+            text-decoration: none;
+            display: inline-block;
+            margin: 2px;
+            cursor: pointer;
+        }
+
+        .btn-cancel,
+        .btn-refund {
+            background-color: #ef4444;
+            color: #fff;
+        }
+
+        .btn-change {
+            background-color: #d6ff00;
+            color: #000;
+        }
+
+        .btn-receipt {
+            background-color: #3b82f6;
+            color: #fff;
+        }
+
+        h1 {
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .text-muted {
+            color: #aaa !important;
+        }
+
+        .simple-footer {
             background-color: #0a0a0a;
             padding: 40px;
             text-align: center;
             border-top: 1px solid #222;
             margin-top: 50px;
         }
-        h1 {
-            color: #fff;
-        }
-        .text-muted {
-            color: #aaa !important;
+
+        .simple-footer .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            font-style: italic;
+            color: #d6ff00;
+            margin-bottom: 15px;
         }
     </style>
 </head>
+
 <body>
 
 <nav class="navbar navbar-expand-lg sticky-top">
@@ -277,6 +339,7 @@ if (
                 <li class="nav-item"><a class="nav-link" href="member_dashboard.php">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="book_gym.php">Book Gym</a></li>
                 <li class="nav-item"><a class="nav-link" href="book_trainer.php">Book Trainer</a></li>
+                <li class="nav-item"><a class="nav-link" href="cart.php">Cart</a></li>
                 <li class="nav-item"><a class="nav-link" href="my_bookings.php" style="color: #d6ff00 !important;">My Bookings</a></li>
                 <li class="nav-item"><a class="nav-link" href="booking_history.php">Booking History</a></li>
                 <li class="nav-item"><a class="nav-link" href="profile.php">My Account</a></li>
@@ -289,7 +352,8 @@ if (
     </div>
 </nav>
 
-<div class="container my-5">
+<div class="container main-container my-5">
+
     <div class="row mb-4">
         <div class="col">
             <h1>My Bookings</h1>
@@ -325,6 +389,13 @@ if (
 
                     <tbody>
                         <?php foreach($upcoming_bookings as $booking): ?>
+                            <?php
+                                $paymentStatus = $booking['payment_status'] ?? 'unpaid';
+                                $refundStatus = $booking['refund_status'] ?? 'not_requested';
+                                $memberAction = $booking['member_action'] ?? '';
+                                $refundAllowedByTime = canRefundByTime($booking['booking_date'], $booking['booking_time']);
+                            ?>
+
                             <tr>
                                 <td>
                                     <?php echo $booking['booking_type'] == 'gym' ? '🏋️ Gym Session' : '👨‍🏫 Personal Trainer'; ?>
@@ -343,49 +414,59 @@ if (
                                 </td>
 
                                 <td>
-                                    <span class="status-badge status-<?php echo $booking['status']; ?>">
+                                    <span class="status-badge status-<?php echo htmlspecialchars($booking['status']); ?>">
                                         <?php echo ucfirst($booking['status']); ?>
                                     </span>
                                 </td>
 
                                 <td>
                                     <?php if($booking['booking_type'] == 'trainer'): ?>
-                                        <?php if($booking['payment_status'] == 'paid'): ?>
+
+                                        <?php if($paymentStatus == 'paid'): ?>
                                             <span class="paid-badge">✓ Paid (RM<?php echo htmlspecialchars($booking['payment_amount']); ?>)</span>
+                                            <br>
+                                            <a href="receipt.php?booking_id=<?php echo $booking['id']; ?>" class="btn-receipt">🧾 Receipt</a>
+
+                                        <?php elseif($paymentStatus == 'refunded'): ?>
+                                            <span class="refund-badge">Refunded</span>
+
                                         <?php else: ?>
                                             <span class="unpaid-badge">Unpaid (RM<?php echo htmlspecialchars($booking['payment_amount']); ?>)</span>
                                         <?php endif; ?>
+
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
                                     <?php endif; ?>
                                 </td>
 
                                 <td>
-                                    <?php if($booking['booking_type'] == 'trainer' && $booking['status'] == 'rejected' && $booking['payment_status'] == 'paid' && $booking['member_action'] == 'pending_choice'): ?>
+                                    <?php if($booking['booking_type'] == 'trainer' && $booking['status'] == 'rejected' && $paymentStatus == 'paid'): ?>
 
-                                        <a href="change_trainer.php?booking_id=<?php echo $booking['id']; ?>" class="btn-pay">Change Trainer</a>
+                                        <a href="change_trainer.php?booking_id=<?php echo $booking['id']; ?>" class="btn-change">Change Trainer</a>
 
-                                        <a href="request_refund.php?booking_id=<?php echo $booking['id']; ?>" class="btn-cancel" onclick="return confirm('Request refund for this booking?');">Request Refund</a>
+                                        <a href="request_refund.php?booking_id=<?php echo $booking['id']; ?>" class="btn-refund" onclick="return confirm('Request refund for this booking?');">
+                                            Request Refund
+                                        </a>
 
-                                    <?php elseif($booking['booking_type'] == 'trainer' && $booking['status'] == 'cancelled' && $booking['member_action'] == 'refund_available' && $booking['refund_status'] == 'not_requested'): ?>
+                                    <?php elseif($booking['booking_type'] == 'trainer' && $booking['status'] == 'cancelled'): ?>
 
-                                        <a href="request_refund.php?booking_id=<?php echo $booking['id']; ?>" class="btn-cancel" onclick="return confirm('Request refund for this cancelled booking?');">Request Refund</a>
+    <?php if($refundStatus == 'requested'): ?>
+        <span class="unpaid-badge">Refund Requested</span>
 
-                                    <?php elseif($booking['booking_type'] == 'trainer' && $booking['refund_status'] == 'requested'): ?>
+    <?php elseif($refundStatus == 'refunded'): ?>
+        <span class="paid-badge">Refund Approved</span>
 
-                                        <span class="unpaid-badge">Refund Requested</span>
+    <?php elseif($refundStatus == 'rejected'): ?>
+        <span class="unpaid-badge">Refund Rejected</span>
 
-                                    <?php elseif($booking['booking_type'] == 'trainer' && $booking['refund_status'] == 'refunded'): ?>
+    <?php elseif($refundStatus == 'not_allowed' || $memberAction == 'refund_not_allowed' || !$refundAllowedByTime): ?>
+        <span class="unpaid-badge">Refund Not Allowed</span>
 
-                                        <span class="paid-badge">Refunded</span>
-
-                                    <?php elseif($booking['booking_type'] == 'trainer' && $booking['refund_status'] == 'not_allowed'): ?>
-
-                                        <span class="unpaid-badge">Refund Not Allowed</span>
-
-                                    <?php elseif($booking['booking_type'] == 'trainer' && $booking['payment_status'] != 'paid' && ($booking['status'] == 'pending' || $booking['status'] == 'approved')): ?>
-
-                                        <a href="process_payment.php?booking_id=<?php echo $booking['id']; ?>" class="btn-pay">💰 Pay Now</a>
+    <?php else: ?>
+        <a href="request_refund.php?booking_id=<?php echo $booking['id']; ?>" class="btn-refund" onclick="return confirm('Request refund for this cancelled booking?');">
+            Request Refund
+        </a>
+    <?php endif; ?>
 
                                     <?php elseif($booking['status'] == 'pending' || $booking['status'] == 'approved'): ?>
 
@@ -407,19 +488,17 @@ if (
                     </tbody>
                 </table>
             </div>
-
         <?php else: ?>
-            <p class="text-muted">No upcoming bookings.</p>
+            <p style="color:#000; font-weight:bold;">No upcoming bookings.</p>
         <?php endif; ?>
     </div>
+
 </div>
 
-<footer>
-    <div class="container">
-        <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">SUPERGYM</div>
-        <p>© SuperGym Booking System. All Rights Reserved.</p>
-    </div>
-</footer>
+<div class="simple-footer">
+    <div class="logo">SUPERGYM</div>
+    <p>© SuperGym Booking System. All Rights Reserved.</p>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 

@@ -11,7 +11,7 @@ $user_id = $_SESSION['user_id'];
 $success = '';
 $error = '';
 
-$stmt = $pdo->prepare("SELECT id FROM trainers WHERE user_id = ?");
+$stmt = $pdo->prepare("SELECT trainer_id FROM trainers WHERE user_id = ?");
 $stmt->execute([$user_id]);
 $trainer = $stmt->fetch();
 
@@ -20,7 +20,7 @@ if (!$trainer) {
     $stmt->execute([$user_id]);
     $trainer_id = $pdo->lastInsertId();
 } else {
-    $trainer_id = $trainer['id'];
+    $trainer_id = $trainer['trainer_id'];
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_slot'])) {
@@ -56,25 +56,65 @@ if (isset($_GET['delete_slot'])) {
     $slot_id = $_GET['delete_slot'];
     
     $stmt = $pdo->prepare("
-        SELECT id FROM bookings WHERE trainer_slot_id = ? AND status NOT IN ('cancelled', 'rejected')
+        SELECT b.id as booking_id, b.payment_status, b.status as booking_status
+        FROM bookings b
+        WHERE b.trainer_slot_id = ? AND b.status NOT IN ('cancelled', 'rejected')
     ");
     $stmt->execute([$slot_id]);
-    if ($stmt->fetch()) {
-        $error = "Cannot delete this slot because it has been booked.";
-    } else {
-        $stmt = $pdo->prepare("DELETE FROM trainer_slots WHERE id = ? AND trainer_id = ?");
-        if ($stmt->execute([$slot_id, $trainer_id])) {
-            $success = "Time slot deleted successfully!";
-        } else {
-            $error = "Failed to delete time slot.";
+    $booking = $stmt->fetch();
+    
+    $pdo->beginTransaction();
+    
+    try {
+        if ($booking) {
+            if ($booking['payment_status'] == 'paid') {
+                $stmt = $pdo->prepare("
+                    UPDATE bookings 
+                    SET status = 'cancelled', 
+                        refund_status = 'completed',
+                        refund_completed_date = NOW(),
+                        payment_status = 'refunded'
+                    WHERE id = ?
+                ");
+                $stmt->execute([$booking['booking_id']]);
+                $success = "Slot deleted. Refund has been processed for the member.";
+            } else {
+                $stmt = $pdo->prepare("
+                    UPDATE bookings 
+                    SET status = 'cancelled'
+                    WHERE id = ?
+                ");
+                $stmt->execute([$booking['booking_id']]);
+                $success = "Slot deleted. Booking has been cancelled.";
+            }
         }
+        
+        $stmt = $pdo->prepare("DELETE FROM trainer_slots WHERE id = ? AND trainer_id = ?");
+        $stmt->execute([$slot_id, $trainer_id]);
+        
+        $pdo->commit();
+        
+        if (!$booking) {
+            $success = "Time slot deleted successfully!";
+        }
+        
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $error = "Failed to delete slot: " . $e->getMessage();
     }
 }
 
 $stmt = $pdo->prepare("
-    SELECT * FROM trainer_slots 
-    WHERE trainer_id = ? 
-    ORDER BY slot_date, start_time
+    SELECT ts.*, 
+           b.id as booking_id, 
+           b.payment_status,
+           b.payment_amount,
+           b.status as booking_status
+    FROM trainer_slots ts
+    LEFT JOIN bookings b ON ts.id = b.trainer_slot_id AND b.status NOT IN ('cancelled', 'rejected')
+    WHERE ts.trainer_id = ? 
+      AND ts.slot_date >= CURDATE()
+    ORDER BY ts.slot_date, ts.start_time
 ");
 $stmt->execute([$trainer_id]);
 $slots = $stmt->fetchAll();
@@ -87,22 +127,9 @@ $slots = $stmt->fetchAll();
     <title>SuperGym - My Schedule</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body {
-            background-color: #111;
-            color: #fff;
-        }
-        .navbar {
-            background-color: #1a1a1a;
-            border-bottom: 1px solid #333;
-            padding: 6px;
-        }
-        .navbar .container {
-            max-width: 100%;
-            width: 100%;
-            padding-left: 0;
-            padding-right: 0;
-            margin: 0;
-        }
+        body { background-color: #111; color: #fff; }
+        .navbar { background-color: #1a1a1a; border-bottom: 1px solid #333; padding: 6px; }
+        .navbar .container { max-width: 100%; width: 100%; padding-left: 0; padding-right: 0; margin: 0; }
         .navbar-brand,
         .navbar-brand:hover,
         .navbar-brand:focus,
@@ -113,14 +140,8 @@ $slots = $stmt->fetchAll();
             text-decoration: none;
             padding-left: 15px;
         }
-        .nav-link {
-            color: #fff !important;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-        .nav-link:hover {
-            color: #d6ff00 !important;
-        }
+        .nav-link { color: #fff !important; font-weight: bold; text-transform: uppercase; }
+        .nav-link:hover { color: #d6ff00 !important; }
         .btn-primary-custom {
             background-color: #d6ff00;
             color: #000;
@@ -130,10 +151,7 @@ $slots = $stmt->fetchAll();
             font-size: 16px;
             border-radius: 10px;
         }
-        .btn-primary-custom:hover {
-            background-color: #c0e800;
-            color: #000;
-        }
+        .btn-primary-custom:hover { background-color: #c0e800; color: #000; }
         .btn-outline-custom {
             border: 2px solid #d6ff00;
             color: #d6ff00;
@@ -143,10 +161,7 @@ $slots = $stmt->fetchAll();
             text-decoration: none;
             background-color: transparent;
         }
-        .btn-outline-custom:hover {
-            background-color: #d6ff00;
-            color: #000;
-        }
+        .btn-outline-custom:hover { background-color: #d6ff00; color: #000; }
         .btn-danger-custom {
             background-color: #ef4444;
             color: #fff;
@@ -157,11 +172,16 @@ $slots = $stmt->fetchAll();
             text-decoration: none;
             display: inline-block;
         }
-        .btn-danger-custom:hover {
-            background-color: #ef4444 !important;
-            color: #fff !important;
-            opacity: 0.9;
+        .btn-danger-custom:hover { background-color: #dc2626; color: #fff; text-decoration: none; }
+        .btn-danger-booked {
+            background-color: #dc2626;
+            color: #fff;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 5px;
+            font-size: 12px;
             text-decoration: none;
+            display: inline-block;
         }
         .welcome-text {
             color: #ddd;
@@ -188,9 +208,6 @@ $slots = $stmt->fetchAll();
             color: #fff;
             box-shadow: none;
         }
-        .form-control::placeholder {
-            color: #888;
-        }
         input[type="date"], input[type="time"] {
             background-color: #2a2a2a !important;
             color: #fff !important;
@@ -201,34 +218,34 @@ $slots = $stmt->fetchAll();
             filter: invert(1);
             cursor: pointer;
         }
-        .table-dark td, 
-        .table-dark th {
+        .table-dark { background-color: #1a1a1a; border-radius: 10px; overflow: hidden; }
+        .table-dark td, .table-dark th {
             text-align: center;
             vertical-align: middle;
-        }
-        .table-dark {
-            background-color: #1a1a1a;
-        }
-        .table-dark td, .table-dark th {
             border-color: #333;
             color: #ddd;
         }
-        .table-dark th {
-            color: #d6ff00;
-        }
-        footer {
-            background-color: #0a0a0a;
-            padding: 40px;
-            text-align: center;
-            border-top: 1px solid #222;
-            margin-top: 50px;
-        }
-        h1 {
+        .table-dark th { color: #d6ff00; }
+        .paid-badge {
+            background-color: #22c55e;
             color: #fff;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            display: inline-block;
         }
-        .text-muted {
-            color: #aaa !important;
+        .unpaid-badge {
+            background-color: #f59e0b;
+            color: #000;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            display: inline-block;
         }
+        h1 { color: #fff; }
+        .text-muted { color: #aaa !important; }
         .badge {
             display: inline-block;
             padding: 5px 12px;
@@ -251,6 +268,8 @@ $slots = $stmt->fetchAll();
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item"><a class="nav-link" href="trainer_dashboard.php">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="trainer_schedule.php" style="color: #d6ff00 !important;">My Schedule</a></li>
+                <li class="nav-item"><a class="nav-link" href="assigned_members.php">Assigned Members</a></li>
+                <li class="nav-item"><a class="nav-link" href="trainer_history.php">History</a></li>
                 <li class="nav-item"><a class="nav-link" href="profile.php">My Account</a></li>
             </ul>
             <div class="ms-4">
@@ -269,11 +288,11 @@ $slots = $stmt->fetchAll();
     </div>
 
     <?php if($success): ?>
-        <div class="alert alert-success"><?php echo $success; ?></div>
+        <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
     <?php endif; ?>
 
     <?php if($error): ?>
-        <div class="alert alert-danger"><?php echo $error; ?></div>
+        <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
     <?php endif; ?>
 
     <div class="schedule-card">
@@ -314,6 +333,7 @@ $slots = $stmt->fetchAll();
                             <th>Start Time</th>
                             <th>End Time</th>
                             <th>Status</th>
+                            <th>Payment</th>
                             <th>Action</th>
                         </tr>
                     </thead>
@@ -331,10 +351,25 @@ $slots = $stmt->fetchAll();
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <?php if($slot['is_available'] == 1): ?>
-                                        <a href="?delete_slot=<?php echo $slot['id']; ?>" class="btn-danger-custom" onclick="return confirm('Are you sure you want to delete this slot?')">Delete</a>
+                                    <?php if($slot['booking_id']): ?>
+                                        <?php if($slot['payment_status'] == 'paid'): ?>
+                                            <span class="paid-badge">✓ Paid (RM<?php echo htmlspecialchars($slot['payment_amount']); ?>)</span>
+                                        <?php else: ?>
+                                            <span class="unpaid-badge">⏳ Unpaid (RM<?php echo htmlspecialchars($slot['payment_amount']); ?>)</span>
+                                        <?php endif; ?>
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if($slot['is_available'] == 1): ?>
+                                        <a href="?delete_slot=<?php echo $slot['id']; ?>" class="btn-danger-custom" onclick="return confirm('Delete this available slot?')">Delete</a>
+                                    <?php else: ?>
+                                        <?php if($slot['payment_status'] == 'paid'): ?>
+                                            <a href="?delete_slot=<?php echo $slot['id']; ?>" class="btn-danger-booked" onclick="return confirm('WARNING: This slot has been PAID. Deleting will refund the member. Continue?')">Cancel & Refund</a>
+                                        <?php else: ?>
+                                            <a href="?delete_slot=<?php echo $slot['id']; ?>" class="btn-danger-custom" onclick="return confirm('This slot has been booked but NOT paid. Deleting will cancel the booking. Continue?')">Cancel Booking</a>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -348,13 +383,8 @@ $slots = $stmt->fetchAll();
     </div>
 </div>
 
-<footer>
-    <div class="container">
-        <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">SUPERGYM</div>
-        <p>© SuperGym Booking System. All Rights Reserved.</p>
-    </div>
-</footer>
+<?php if (file_exists('footer.php')) include 'footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
-</html>
+</html>  

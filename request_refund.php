@@ -13,7 +13,7 @@ $member_id = $_SESSION['user_id'];
 $stmt = $pdo->prepare("
     SELECT *
     FROM bookings
-    WHERE id = ? 
+    WHERE id = ?
     AND member_id = ?
     AND booking_type = 'trainer'
     AND payment_status = 'paid'
@@ -31,8 +31,28 @@ if ($booking['refund_status'] == 'requested') {
     exit();
 }
 
-if ($booking['refund_status'] == 'not_allowed') {
-    header("Location: my_bookings.php?error=Refund is not allowed for this booking");
+if ($booking['refund_status'] == 'refunded') {
+    header("Location: my_bookings.php?error=This booking has already been refunded");
+    exit();
+}
+
+if ($booking['refund_status'] == 'not_allowed' || $booking['member_action'] == 'refund_not_allowed') {
+    header("Location: my_bookings.php?error=Refund is not allowed because cancellation was made less than 24 hours before session");
+    exit();
+}
+
+$allowed = false;
+
+if ($booking['status'] == 'cancelled' && $booking['member_action'] == 'refund_available') {
+    $allowed = true;
+}
+
+if ($booking['status'] == 'rejected' && $booking['member_action'] == 'pending_choice') {
+    $allowed = true;
+}
+
+if (!$allowed) {
+    header("Location: my_bookings.php?error=Refund is not available for this booking");
     exit();
 }
 
@@ -45,6 +65,6 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$booking_id]);
 
-header("Location: my_bookings.php?success=Refund request submitted to admin");
+header("Location: my_bookings.php?success=Refund request submitted to staff");
 exit();
 ?>

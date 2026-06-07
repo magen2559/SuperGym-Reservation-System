@@ -9,7 +9,7 @@ if ($_SESSION['user_role'] != 'trainer') {
 
 $user_id = $_SESSION['user_id'];
 
-$stmt = $pdo->prepare("SELECT id FROM trainers WHERE user_id = ?");
+$stmt = $pdo->prepare("SELECT trainer_id FROM trainers WHERE user_id = ?");
 $stmt->execute([$user_id]);
 $trainer = $stmt->fetch();
 
@@ -21,26 +21,28 @@ if (!$trainer) {
     $stmt->execute([$user_id]);
     $trainer_id = $pdo->lastInsertId();
 } else {
-    $trainer_id = $trainer['id'];
+    $trainer_id = $trainer['trainer_id'];
 }
 
 $stmt = $pdo->prepare("
-    SELECT b.*, u.name as member_name, ts.slot_date, ts.start_time, ts.end_time
+    SELECT b.*, u.name as member_name, ts.slot_date, ts.start_time, ts.end_time, b.payment_status
     FROM bookings b
     JOIN trainer_slots ts ON b.trainer_slot_id = ts.id
     JOIN users u ON b.member_id = u.id
-    WHERE ts.trainer_id = ? AND b.status = 'pending' AND b.payment_status = 'paid'
+    WHERE ts.trainer_id = ? AND b.status = 'pending'
     ORDER BY ts.slot_date, ts.start_time
 ");
 $stmt->execute([$trainer_id]);
 $pending_bookings = $stmt->fetchAll();
 
 $stmt = $pdo->prepare("
-    SELECT b.*, u.name as member_name, ts.slot_date, ts.start_time, ts.end_time
+    SELECT b.*, u.name as member_name, ts.slot_date, ts.start_time, ts.end_time, b.payment_status
     FROM bookings b
     JOIN trainer_slots ts ON b.trainer_slot_id = ts.id
     JOIN users u ON b.member_id = u.id
-    WHERE ts.trainer_id = ? AND b.status = 'approved'
+    WHERE ts.trainer_id = ? 
+      AND b.status = 'approved'
+      AND ts.slot_date >= CURDATE()
     ORDER BY ts.slot_date, ts.start_time
     LIMIT 10
 ");
@@ -206,6 +208,8 @@ $approved_bookings = $stmt->fetchAll();
 
         .table-dark {
             background-color: #1a1a1a;
+            border-radius: 10px;
+            overflow: hidden;
             width: 100%;
             table-layout: fixed;
         }
@@ -323,6 +327,8 @@ $approved_bookings = $stmt->fetchAll();
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item"><a class="nav-link" href="trainer_dashboard.php" style="color: #d6ff00 !important;">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="trainer_schedule.php">My Schedule</a></li>
+                <li class="nav-item"><a class="nav-link" href="assigned_members.php">Assigned Members</a></li>
+                <li class="nav-item"><a class="nav-link" href="trainer_history.php">History</a></li>
                 <li class="nav-item"><a class="nav-link" href="profile.php">My Account</a></li>
             </ul>
 
@@ -432,14 +438,7 @@ $approved_bookings = $stmt->fetchAll();
     </div>
 </div>
 
-<footer>
-    <div class="container">
-        <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">
-            SUPERGYM
-        </div>
-        <p>© SuperGym Booking System. All Rights Reserved.</p>
-    </div>
-</footer>
+<?php include 'footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 

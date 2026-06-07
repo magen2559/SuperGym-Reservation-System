@@ -8,79 +8,81 @@ if ($_SESSION['user_role'] != 'member') {
 }
 
 $member_id = $_SESSION['user_id'];
+$preselected_slot_id = isset($_GET['slot_id']) ? (int)$_GET['slot_id'] : 0;
+$auto_select_message = '';
 $success_message = '';
 $error_message = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_trainer'])) {
-    $slot_id = $_POST['slot_id'];
+    $slot_id = (int)$_POST['slot_id'];
 
     $stmt = $pdo->prepare("
-        SELECT id FROM bookings 
-        WHERE member_id = ? AND trainer_slot_id = ? AND status NOT IN ('cancelled', 'rejected')
+        SELECT id, payment_status 
+        FROM bookings 
+        WHERE member_id = ? 
+        AND trainer_slot_id = ? 
+        AND booking_type = 'trainer'
+        AND status NOT IN ('cancelled', 'rejected')
+        LIMIT 1
     ");
     $stmt->execute([$member_id, $slot_id]);
+    $existing_booking = $stmt->fetch();
 
-    if ($stmt->fetch()) {
-        $error_message = "You have already booked this time slot!";
+    if ($existing_booking) {
+        if ($existing_booking['payment_status'] != 'paid') {
+            header("Location: process_payment.php?booking_id=" . $existing_booking['id']);
+            exit();
+        } else {
+            $error_message = "You have already booked and paid for this time slot!";
+        }
     } else {
-        $stmt = $pdo->prepare("SELECT is_available FROM trainer_slots WHERE id = ?");
+        $stmt = $pdo->prepare("
+            SELECT is_available 
+            FROM trainer_slots 
+            WHERE id = ?  
+        ");
         $stmt->execute([$slot_id]);
         $slot = $stmt->fetch();
 
         if ($slot && $slot['is_available'] == 1) {
 
-            if (isset($_SESSION['change_booking_id'])) {
-                $old_booking_id = $_SESSION['change_booking_id'];
-                $payment_amount = $_SESSION['change_payment_amount'];
-                $bill_code = $_SESSION['change_bill_code'];
-                $transaction_id = $_SESSION['change_transaction_id'];
+            $stmt = $pdo->prepare("
+                INSERT INTO bookings (
+                    member_id,
+                    booking_type,
+                    trainer_slot_id,
+                    status,
+                    payment_status,
+                    payment_amount,
+                    refund_status
+                ) 
+                VALUES (
+                    ?,
+                    'trainer',
+                    ?,
+                    'pending',
+                    'pending',
+                    2.00,
+                    'none'
+                )
+            ");
+
+            if ($stmt->execute([$member_id, $slot_id])) {
+
+                $booking_id = $pdo->lastInsertId();
 
                 $stmt = $pdo->prepare("
-                    INSERT INTO bookings 
-                    (member_id, booking_type, trainer_slot_id, status, payment_status, payment_amount, bill_code, transaction_id, payment_date)
-                    VALUES (?, 'trainer', ?, 'pending', 'paid', ?, ?, ?, NOW())
+                    UPDATE trainer_slots
+                    SET is_available = 0
+                    WHERE id = ?
                 ");
+                $stmt->execute([$slot_id]);
 
-                if ($stmt->execute([$member_id, $slot_id, $payment_amount, $bill_code, $transaction_id])) {
-                    $stmt = $pdo->prepare("
-                        UPDATE bookings 
-                        SET status = 'cancelled',
-                            member_action = 'trainer_changed'
-                        WHERE id = ?
-                    ");
-                    $stmt->execute([$old_booking_id]);
-
-                    $stmt = $pdo->prepare("UPDATE trainer_slots SET is_available = 0 WHERE id = ?");
-                    $stmt->execute([$slot_id]);
-
-                    unset($_SESSION['change_booking_id']);
-                    unset($_SESSION['change_payment_amount']);
-                    unset($_SESSION['change_bill_code']);
-                    unset($_SESSION['change_transaction_id']);
-
-                    $success_message = "Trainer changed successfully! Waiting for trainer approval.";
-                } else {
-                    $error_message = "Booking failed. Please try again.";
-                }
+                header("Location: process_payment.php?booking_id=" . $booking_id);
+                exit();
 
             } else {
-                $stmt = $pdo->prepare("
-                    INSERT INTO bookings 
-                    (member_id, booking_type, trainer_slot_id, status, payment_status, payment_amount) 
-                    VALUES (?, 'trainer', ?, 'pending', 'unpaid', 50.00)
-                ");
-
-                if ($stmt->execute([$member_id, $slot_id])) {
-                    $booking_id = $pdo->lastInsertId();
-
-                    $stmt = $pdo->prepare("UPDATE trainer_slots SET is_available = 0 WHERE id = ?");
-                    $stmt->execute([$slot_id]);
-
-                    header("Location: process_payment.php?booking_id=" . $booking_id);
-                    exit();
-                } else {
-                    $error_message = "Booking failed. Please try again.";
-                }
+                $error_message = "Booking failed. Please try again.";
             }
 
         } else {
@@ -97,36 +99,65 @@ $stmt = $pdo->prepare("
            (SELECT COUNT(*) FROM bookings 
             WHERE trainer_slot_id = ts.id 
             AND member_id = ? 
-            AND status NOT IN ('cancelled', 'rejected')) as user_booked,
+            AND booking_type = 'trainer'
+            AND status IN ('pending', 'approved')) as user_booked,
            (SELECT COUNT(*) FROM bookings 
             WHERE trainer_slot_id = ts.id 
-            AND status NOT IN ('cancelled', 'rejected')) as total_booked
+            AND booking_type = 'trainer'
+            AND status IN ('pending', 'approved')) as total_booked
     FROM trainer_slots ts
-    JOIN trainers t ON t.id = ts.trainer_id
+    JOIN trainers t ON t.trainer_id = ts.trainer_id
     JOIN users u ON u.id = t.user_id
-    WHERE ts.slot_date >= CURDATE()
-    ORDER BY ts.slot_date, ts.start_time
+    WHERE (ts.slot_date > CURDATE()) 
+       OR (ts.slot_date = CURDATE() AND ts.end_time > CURTIME())
+    ORDER BY u.name, ts.slot_date, ts.start_time
 ");
 $stmt->execute([$member_id]);
 $slots = $stmt->fetchAll();
+
+$grouped_slots = [];
+
+foreach ($slots as $slot) {
+    $trainer_id = $slot['trainer_id'];
+
+    if (!isset($grouped_slots[$trainer_id])) {
+        $grouped_slots[$trainer_id] = [
+            'trainer_name' => $slot['trainer_name'],
+            'specialty' => $slot['specialty'],
+            'bio' => $slot['bio'],
+            'slots' => []
+        ];
+    }
+
+    $grouped_slots[$trainer_id]['slots'][] = $slot;
+}
+
+if ($preselected_slot_id > 0) {
+    $auto_select_message = "You have been redirected to book this trainer slot.";
+}
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SuperGym - Book Personal Trainer</title>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
     <style>
         body {
             background-color: #111;
             color: #fff;
         }
+
         .navbar {
             background-color: #1a1a1a;
             border-bottom: 1px solid #333;
             padding: 6px;
         }
+
         .navbar .container {
             max-width: 100%;
             width: 100%;
@@ -134,6 +165,7 @@ $slots = $stmt->fetchAll();
             padding-right: 0;
             margin: 0;
         }
+
         .navbar-brand,
         .navbar-brand:hover,
         .navbar-brand:focus,
@@ -144,44 +176,17 @@ $slots = $stmt->fetchAll();
             text-decoration: none;
             padding-left: 15px;
         }
+
         .nav-link {
             color: #fff !important;
             font-weight: bold;
             text-transform: uppercase;
         }
+
         .nav-link:hover {
             color: #d6ff00 !important;
         }
-        .btn-primary-custom {
-            background-color: #d6ff00;
-            color: #000;
-            font-weight: bold;
-            border: none;
-            padding: 8px 20px;
-            border-radius: 10px;
-        }
-        .btn-primary-custom:hover {
-            background-color: #c0e800;
-            color: #000;
-        }
-        .btn-disabled {
-            background-color: #6b7280;
-            color: #aaa;
-            font-weight: bold;
-            padding: 8px 20px;
-            border-radius: 10px;
-            border: none;
-            cursor: not-allowed;
-        }
-        .btn-booked {
-            background-color: #22c55e;
-            color: #fff;
-            font-weight: bold;
-            padding: 8px 20px;
-            border-radius: 10px;
-            border: none;
-            cursor: not-allowed;
-        }
+
         .btn-outline-custom {
             border: 2px solid #d6ff00;
             color: #d6ff00;
@@ -191,6 +196,12 @@ $slots = $stmt->fetchAll();
             text-decoration: none;
             background-color: transparent;
         }
+
+        .btn-outline-custom:hover {
+            background-color: #d6ff00;
+            color: #000;
+        }
+
         .welcome-text {
             color: #ddd;
             font-size: 14px;
@@ -198,26 +209,107 @@ $slots = $stmt->fetchAll();
             padding-left: 20px;
             border-left: 1px solid #555;
         }
-        .trainer-card {
+
+        .trainer-group {
+            margin-bottom: 40px;
+            padding: 20px;
             background-color: #1a1a1a;
+            border-radius: 15px;
+            border: 1px solid #333;
+        }
+
+        .trainer-header {
+            border-bottom: 1px solid #333;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .trainer-header h3 {
+            color: #d6ff00;
+            margin-bottom: 5px;
+        }
+
+        .trainer-header .specialty {
+            color: #aaa;
+            font-size: 0.85rem;
+        }
+
+        .trainer-card {
+            background-color: #EEF527;
             border: 1px solid #333;
             border-radius: 15px;
             transition: transform 0.3s;
             height: 100%;
         }
+
         .trainer-card:hover {
             transform: translateY(-5px);
-            border-color: #d6ff00;
+            border-color: #fff;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
         }
-        .trainer-name {
-            color: #d6ff00;
-            font-size: 1.2rem;
+
+        .trainer-card .mb-0 {
+            color: #000;
+        }
+
+        .trainer-card .btn-primary-custom {
+            background-color: #000;
+            color: #EEF527;
             font-weight: bold;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 10px;
+            width: 100%;
         }
-        .specialty {
-            color: #aaa;
-            font-size: 0.85rem;
+
+        .trainer-card .btn-primary-custom:hover {
+            background-color: #333;
+            color: #EEF527;
         }
+
+        .btn-disabled {
+            background-color: #999;
+            color: #333;
+            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 10px;
+            border: none;
+            cursor: not-allowed;
+            width: 100%;
+        }
+
+        .btn-booked {
+            background-color: #22c55e;
+            color: #fff;
+            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 10px;
+            border: none;
+            cursor: not-allowed;
+            width: 100%;
+        }
+
+        .btn-ongoing {
+            background-color: #f59e0b;
+            color: #000;
+            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 10px;
+            border: none;
+            cursor: not-allowed;
+            width: 100%;
+        }
+
+        .trainer-card.highlight {
+            border: 3px solid #000;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+            transform: scale(1.02);
+        }
+
+        .slot-booked {
+            opacity: 0.8;
+        }
+
         footer {
             background-color: #0a0a0a;
             padding: 40px;
@@ -225,18 +317,17 @@ $slots = $stmt->fetchAll();
             border-top: 1px solid #222;
             margin-top: 50px;
         }
+
         h1 {
             color: #fff;
         }
+
         .text-muted {
             color: #aaa !important;
         }
-        .slot-booked {
-            opacity: 0.7;
-            background-color: #1a1a1a;
-        }
     </style>
 </head>
+
 <body>
 
 <nav class="navbar navbar-expand-lg sticky-top">
@@ -245,18 +336,22 @@ $slots = $stmt->fetchAll();
             <a class="navbar-brand" href="index.php">SUPERGYM</a>
             <span class="welcome-text">Welcome, <?php echo htmlspecialchars($_SESSION['user_name']); ?></span>
         </div>
+
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
             <span class="navbar-toggler-icon bg-white"></span>
         </button>
+
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item"><a class="nav-link" href="member_dashboard.php">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="book_gym.php">Book Gym</a></li>
                 <li class="nav-item"><a class="nav-link" href="book_trainer.php" style="color: #d6ff00 !important;">Book Trainer</a></li>
+                <li class="nav-item"><a class="nav-link" href="cart.php">Cart</a></li>
                 <li class="nav-item"><a class="nav-link" href="my_bookings.php">My Bookings</a></li>
                 <li class="nav-item"><a class="nav-link" href="booking_history.php">Booking History</a></li>
                 <li class="nav-item"><a class="nav-link" href="profile.php">My Account</a></li>
             </ul>
+
             <div class="ms-4">
                 <a href="logout.php" class="btn btn-outline-custom">Logout</a>
             </div>
@@ -265,6 +360,7 @@ $slots = $stmt->fetchAll();
 </nav>
 
 <div class="container my-5">
+
     <div class="row mb-4">
         <div class="col">
             <h1>Book Personal Trainer</h1>
@@ -272,65 +368,158 @@ $slots = $stmt->fetchAll();
         </div>
     </div>
 
+    <?php if($auto_select_message): ?>
+        <div class="alert alert-info"><?php echo htmlspecialchars($auto_select_message); ?></div>
+    <?php endif; ?>
+
     <?php if($success_message): ?>
-        <div class="alert alert-success"><?php echo $success_message; ?></div>
+        <div class="alert alert-success"><?php echo htmlspecialchars($success_message); ?></div>
     <?php endif; ?>
 
     <?php if($error_message): ?>
-        <div class="alert alert-danger"><?php echo $error_message; ?></div>
+        <div class="alert alert-danger"><?php echo htmlspecialchars($error_message); ?></div>
     <?php endif; ?>
 
     <?php if(count($slots) == 0): ?>
         <div class="alert alert-warning">No trainer slots available at the moment. Please check back later.</div>
     <?php else: ?>
-        <div class="row">
-            <?php foreach($slots as $slot): ?>
-                <?php
-                $is_user_booked = ($slot['user_booked'] > 0);
-                $is_full = ($slot['total_booked'] > 0 && $slot['is_available'] == 0);
-                ?>
-                <div class="col-md-4 mb-4">
-                    <div class="trainer-card p-4 <?php echo $is_user_booked ? 'slot-booked' : ''; ?>">
-                        <div class="mb-3">
-                            <div class="trainer-name"><?php echo htmlspecialchars($slot['trainer_name']); ?></div>
-                            <div class="specialty"><?php echo htmlspecialchars($slot['specialty'] ?? 'Fitness Coach'); ?></div>
-                            <?php if(!empty($slot['bio'])): ?>
-                                <p class="small text-muted mt-2"><?php echo htmlspecialchars(substr($slot['bio'], 0, 80)); ?>...</p>
-                            <?php endif; ?>
-                        </div>
-                        <div class="border-top border-secondary pt-3 mt-2">
-                            <p class="mb-0">📅 <?php echo date('D, M j', strtotime($slot['slot_date'])); ?></p>
-                            <p class="text-warning fw-bold mb-0">⏰ <?php echo date('g:i A', strtotime($slot['start_time'])); ?> - <?php echo date('g:i A', strtotime($slot['end_time'])); ?></p>
-                        </div>
-                        
-                        <?php if($is_user_booked): ?>
-                            <div class="mt-3 text-center">
-                                <button class="btn-booked w-100" disabled>✓ Already Booked (Pending)</button>
-                            </div>
-                        <?php elseif($is_full): ?>
-                            <div class="mt-3 text-center">
-                                <button class="btn-disabled w-100" disabled>✗ Slot Unavailable</button>
-                            </div>
-                        <?php else: ?>
-                            <form method="POST" class="mt-3">
-                                <input type="hidden" name="slot_id" value="<?php echo $slot['id']; ?>">
-                                <button type="submit" name="book_trainer" class="btn btn-primary-custom w-100">Book This Trainer</button>
-                            </form>
-                        <?php endif; ?>
-                    </div>
+
+        <?php foreach($grouped_slots as $trainer_id => $trainer_data): ?>
+
+            <div class="trainer-group">
+                <div class="trainer-header">
+                    <h3>👨‍🏫 <?php echo htmlspecialchars($trainer_data['trainer_name']); ?></h3>
+                    <p class="specialty mb-1"><?php echo htmlspecialchars($trainer_data['specialty'] ?? 'Fitness Coach'); ?></p>
+
+                    <?php if(!empty($trainer_data['bio'])): ?>
+                        <p class="text-muted small mb-0"><?php echo htmlspecialchars(substr($trainer_data['bio'], 0, 100)); ?>...</p>
+                    <?php endif; ?>
                 </div>
-            <?php endforeach; ?>
-        </div>
+
+                <div class="row">
+                    <?php foreach($trainer_data['slots'] as $slot): ?>
+                        <?php
+                        $is_user_booked = ($slot['user_booked'] > 0);
+                        $is_full = ($slot['total_booked'] > 0 && $slot['is_available'] == 0);
+                        $is_highlight = ($preselected_slot_id == $slot['id']);
+
+                        $isOngoing = false;
+                        $today = date('Y-m-d');
+                        $currentTime = date('H:i:s');
+
+                        if ($slot['slot_date'] == $today) {
+                            if ($slot['start_time'] <= $currentTime && $slot['end_time'] >= $currentTime) {
+                                $isOngoing = true;
+                            }
+                        }
+                        ?>
+
+                        <div class="col-md-4 mb-4">
+                            <div class="trainer-card p-4 <?php echo $is_user_booked ? 'slot-booked' : ''; ?> <?php echo $is_highlight ? 'highlight' : ''; ?>">
+                                <div class="mb-2">
+                                    <p class="mb-0">📅 <?php echo date('D, M j', strtotime($slot['slot_date'])); ?></p>
+                                    <p class="fw-bold mb-0" style="color: #000;">
+                                        ⏰ <?php echo date('g:i A', strtotime($slot['start_time'])); ?> - 
+                                        <?php echo date('g:i A', strtotime($slot['end_time'])); ?>
+                                    </p>
+                                    <p class="mb-0 mt-2 fw-bold" style="color:#000;">Fee: RM2.00</p>
+                                </div>
+
+                                <?php if($isOngoing): ?>
+                                    <div class="mt-3 text-center">
+                                        <button class="btn-ongoing" disabled>⏳ Ongoing</button>
+                                    </div>
+
+                                <?php elseif($is_user_booked): ?>
+                                    <div class="mt-3 text-center">
+                                        <button class="btn-booked" disabled>✓ Already Booked</button>
+                                    </div>
+
+                                <?php elseif($is_full): ?>
+                                    <div class="mt-3 text-center">
+                                        <button class="btn-disabled" disabled>✗ Slot Unavailable</button>
+                                    </div>
+
+                                <?php else: ?>
+                                    <form method="POST" class="mt-3">
+                                        <input type="hidden" name="slot_id" value="<?php echo $slot['id']; ?>">
+                                       <div class="d-flex gap-2">
+    <button type="submit" name="book_trainer" class="btn btn-primary-custom" style="width:50%;">
+        Book Now
+    </button>
+
+    <button type="button" class="btn btn-primary-custom add-to-cart-btn" 
+            data-slot-id="<?php echo $slot['id']; ?>" 
+            style="width:50%; background-color:#333; color:#EEF527;">
+        Add to Cart
+    </button>
+</div>
+                                    </form>
+                                <?php endif; ?>
+
+                            </div>
+                        </div>
+
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+        <?php endforeach; ?>
+
     <?php endif; ?>
+
 </div>
 
-<footer>
-    <div class="container">
-        <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">SUPERGYM</div>
-        <p>© SuperGym Booking System. All Rights Reserved.</p>
-    </div>
-</footer>
+<?php include 'footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+    var highlighted = document.querySelector('.trainer-card.highlight');
+    if (highlighted) {
+        highlighted.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    document.querySelectorAll('.add-to-cart-btn').forEach(function(button) {
+        button.addEventListener('click', function() {
+
+            const slotId = this.getAttribute('data-slot-id');
+
+            fetch('add_to_cart.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    slot_id: slotId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+
+                if (data.success) {
+
+                    if (confirm('Slot added to cart. Go to cart now?')) {
+                        window.location.href = 'cart.php';
+                    }
+
+                } else {
+                    alert(data.message);
+                }
+
+            })
+            .catch(error => {
+                alert('Error adding slot to cart');
+                console.error(error);
+            });
+
+        });
+    });
+
+});
+</script>
+
 </body>
 </html>

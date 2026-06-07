@@ -8,8 +8,10 @@ if ($booking_id > 0) {
     $stmt = $pdo->prepare("
         UPDATE bookings
         SET payment_status = 'paid',
-            payment_date = NOW()
+            payment_date = NOW(),
+            member_action = NULL
         WHERE id = ?
+        AND booking_type = 'trainer'
     ");
     $stmt->execute([$booking_id]);
 

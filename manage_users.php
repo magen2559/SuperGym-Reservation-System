@@ -10,14 +10,16 @@ if ($_SESSION['user_role'] != 'staff') {
 $success = '';
 $error = '';
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$filter_role = isset($_GET['filter_role']) ? $_GET['filter_role'] : '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_user'])) {
     $name = trim($_POST['name']);
     $email = trim($_POST['email']);
     $password = $_POST['password'];
+    $role = $_POST['role'];
     
     if (empty($name) || empty($email) || empty($password)) {
-        $error = "Please fill in all fields.";
+        $error = "Please fill in all required fields.";
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = "Invalid email format.";
     } else {
@@ -27,11 +29,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_user'])) {
             $error = "Email already exists.";
         } else {
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, 'member')");
-            if ($stmt->execute([$name, $email, $hashed_password])) {
-                $success = "Member added successfully!";
+            $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)");
+            if ($stmt->execute([$name, $email, $hashed_password, $role])) {
+                $user_id = $pdo->lastInsertId();
+                
+                if ($role == 'trainer') {
+                    $stmt = $pdo->prepare("INSERT INTO trainers (user_id, specialty, bio) VALUES (?, 'Fitness Coach', 'Professional trainer')");
+                    $stmt->execute([$user_id]);
+                }
+                
+                $success = "User added successfully!";
             } else {
-                $error = "Failed to add member.";
+                $error = "Failed to add user.";
             }
         }
     }
@@ -40,19 +49,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_user'])) {
 if (isset($_GET['delete'])) {
     $user_id = $_GET['delete'];
     
-    $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
-    $stmt->execute([$user_id]);
-    $user = $stmt->fetch();
-    
-    if ($user && $user['role'] == 'member') {
+    if ($user_id == $_SESSION['user_id']) {
+        $error = "You cannot delete your own account.";
+    } else {
         $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
         if ($stmt->execute([$user_id])) {
-            $success = "Member deleted successfully!";
+            $success = "User deleted successfully!";
         } else {
-            $error = "Failed to delete member.";
+            $error = "Failed to delete user.";
         }
-    } else {
-        $error = "Cannot delete this user.";
     }
 }
 
@@ -60,29 +65,54 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_user'])) {
     $user_id = $_POST['user_id'];
     $name = trim($_POST['name']);
     $email = trim($_POST['email']);
+    $role = $_POST['role'];
     
     if (empty($name) || empty($email)) {
         $error = "Name and email cannot be empty.";
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = "Invalid email format.";
     } else {
-        $stmt = $pdo->prepare("UPDATE users SET name = ?, email = ? WHERE id = ? AND role = 'member'");
-        if ($stmt->execute([$name, $email, $user_id])) {
-            $success = "Member updated successfully!";
+        $stmt = $pdo->prepare("UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?");
+        if ($stmt->execute([$name, $email, $role, $user_id])) {
+            $success = "User updated successfully!";
         } else {
-            $error = "Failed to update member.";
+            $error = "Failed to update user.";
         }
     }
 }
 
+$query = "
+    SELECT u.id, u.name, u.email, u.role, u.created_at
+    FROM users u
+    WHERE u.role IN ('member', 'trainer', 'staff')
+";
+
+$params = [];
+
 if (!empty($search)) {
-    $stmt = $pdo->prepare("SELECT id, name, email, created_at FROM users WHERE role = 'member' AND (name LIKE ? OR email LIKE ?) ORDER BY created_at DESC");
-    $stmt->execute(["%$search%", "%$search%"]);
-} else {
-    $stmt = $pdo->prepare("SELECT id, name, email, created_at FROM users WHERE role = 'member' ORDER BY created_at DESC");
-    $stmt->execute();
+    $query .= " AND (u.name LIKE ? OR u.email LIKE ?)";
+    $params[] = "%$search%";
+    $params[] = "%$search%";
 }
-$members = $stmt->fetchAll();
+
+if (!empty($filter_role) && $filter_role != 'all') {
+    $query .= " AND u.role = ?";
+    $params[] = $filter_role;
+}
+
+$query .= " ORDER BY u.created_at DESC";
+$stmt = $pdo->prepare($query);
+$stmt->execute($params);
+$users = $stmt->fetchAll();
+
+$stmt = $pdo->query("SELECT COUNT(*) as count FROM users WHERE role = 'member'");
+$total_members = $stmt->fetch()['count'];
+
+$stmt = $pdo->query("SELECT COUNT(*) as count FROM users WHERE role = 'trainer'");
+$total_trainers = $stmt->fetch()['count'];
+
+$stmt = $pdo->query("SELECT COUNT(*) as count FROM users WHERE role = 'staff'");
+$total_staff = $stmt->fetch()['count'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -174,12 +204,28 @@ $members = $stmt->fetchAll();
             padding-left: 20px;
             border-left: 1px solid #555;
         }
+        .stat-card {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #d6ff00;
+        }
         .table-dark {
             background-color: #1a1a1a;
+            border-radius: 10px;
+            overflow: hidden;
         }
         .table-dark td, .table-dark th {
             border-color: #333;
             color: #ddd;
+            text-align: center;
+            vertical-align: middle;
         }
         .table-dark th {
             color: #d6ff00;
@@ -205,6 +251,15 @@ $members = $stmt->fetchAll();
             color: #fff;
             box-shadow: none;
         }
+        .form-select {
+            background-color: #2a2a2a;
+            border: 1px solid #333;
+            color: #fff;
+        }
+        .form-select:focus {
+            border-color: #d6ff00;
+            box-shadow: none;
+        }
         footer {
             background-color: #0a0a0a;
             padding: 40px;
@@ -218,8 +273,30 @@ $members = $stmt->fetchAll();
         .text-muted {
             color: #aaa !important;
         }
-        .search-box {
-            max-width: 300px;
+        .search-filter-bar {
+            background-color: #1a1a1a;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        .role-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .role-member {
+            background-color: #22c55e;
+            color: #fff;
+        }
+        .role-trainer {
+            background-color: #f59e0b;
+            color: #000;
+        }
+        .role-staff {
+            background-color: #3b82f6;
+            color: #fff;
         }
     </style>
 </head>
@@ -239,6 +316,9 @@ $members = $stmt->fetchAll();
                 <li class="nav-item"><a class="nav-link" href="staff_dashboard.php">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_users.php" style="color: #d6ff00 !important;">Users</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_trainers.php">Trainers</a></li>
+                <li class="nav-item"><a class="nav-link" href="manage_bookings.php">Bookings</a></li>
+                <li class="nav-item"><a class="nav-link" href="equipment.php">Equipment</a></li>
+                <li class="nav-item"><a class="nav-link" href="gym_capacity.php">Gym Capacity</a></li>
                 <li class="nav-item"><a class="nav-link" href="reports.php">Reports</a></li>
                 <li class="nav-item"><a class="nav-link" href="profile.php">My Account</a></li>
             </ul>
@@ -250,33 +330,69 @@ $members = $stmt->fetchAll();
 </nav>
 
 <div class="container my-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1>Manage Members</h1>
-            <p class="text-muted">View, add, edit, or delete member accounts</p>
+    <div class="row mb-4">
+        <div class="col">
+            <h1>User Management</h1>
+            <p class="text-muted">View, search, and manage all system users</p>
         </div>
-        <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addUserModal">+ Add New Member</button>
+        <div class="col-auto">
+            <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addUserModal">+ Add New User</button>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3">
+            <div class="stat-card">
+                <div class="stat-number"><?php echo $total_members; ?></div>
+                <div class="text-muted">Total Members</div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="stat-card">
+                <div class="stat-number"><?php echo $total_trainers; ?></div>
+                <div class="text-muted">Total Trainers</div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="stat-card">
+                <div class="stat-number"><?php echo $total_staff; ?></div>
+                <div class="text-muted">Total Staff</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="search-filter-bar">
+        <form method="GET" class="row g-3">
+            <div class="col-md-5">
+                <label class="form-label">Search</label>
+                <input type="text" name="search" class="form-control" placeholder="Search by name or email..." value="<?php echo htmlspecialchars($search); ?>">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Filter by Role</label>
+                <select name="filter_role" class="form-select">
+                    <option value="all" <?php echo $filter_role == 'all' ? 'selected' : ''; ?>>All Roles</option>
+                    <option value="member" <?php echo $filter_role == 'member' ? 'selected' : ''; ?>>Member</option>
+                    <option value="trainer" <?php echo $filter_role == 'trainer' ? 'selected' : ''; ?>>Trainer</option>
+                    <option value="staff" <?php echo $filter_role == 'staff' ? 'selected' : ''; ?>>Staff</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary-custom w-100">Search</button>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <a href="manage_users.php" class="btn btn-outline-custom w-100">Clear</a>
+            </div>
+        </form>
     </div>
 
     <?php if($success): ?>
         <div class="alert alert-success"><?php echo $success; ?></div>
     <?php endif; ?>
-
     <?php if($error): ?>
         <div class="alert alert-danger"><?php echo $error; ?></div>
     <?php endif; ?>
-
-    <div class="row mb-4">
-        <div class="col-md-4">
-            <form method="GET" class="d-flex">
-                <input type="text" name="search" class="form-control me-2" placeholder="Search by name or email..." value="<?php echo htmlspecialchars($search); ?>">
-                <button type="submit" class="btn btn-primary-custom">Search</button>
-                <?php if($search): ?>
-                    <a href="manage_users.php" class="btn btn-outline-custom ms-2">Clear</a>
-                <?php endif; ?>
-            </form>
-        </div>
-    </div>
 
     <div class="table-responsive">
         <table class="table table-dark">
@@ -285,30 +401,39 @@ $members = $stmt->fetchAll();
                     <th>ID</th>
                     <th>Name</th>
                     <th>Email</th>
-                    <th>Registered Date</th>
+                    <th>Role</th>
+                    <th>Registered</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
-                <?php if(count($members) > 0): ?>
-                    <?php foreach($members as $member): ?>
+                <?php if(count($users) > 0): ?>
+                    <?php foreach($users as $user): ?>
                         <tr>
-                            <td><?php echo $member['id']; ?></td>
-                            <td><?php echo htmlspecialchars($member['name']); ?></td>
-                            <td><?php echo htmlspecialchars($member['email']); ?></td>
-                            <td><?php echo date('d M Y', strtotime($member['created_at'])); ?></td>
+                            <td><?php echo $user['id']; ?></td>
+                            <td><?php echo htmlspecialchars($user['name']); ?></td>
+                            <td><?php echo htmlspecialchars($user['email']); ?></td>
+                            <td>
+                                <span class="role-badge role-<?php echo $user['role']; ?>">
+                                    <?php echo ucfirst($user['role']); ?>
+                                </span>
+                            </td>
+                            <td><?php echo date('d M Y', strtotime($user['created_at'])); ?> </td>
                             <td>
                                 <button class="btn btn-warning-custom" data-bs-toggle="modal" data-bs-target="#editUserModal" 
-                                    data-id="<?php echo $member['id']; ?>"
-                                    data-name="<?php echo htmlspecialchars($member['name']); ?>"
-                                    data-email="<?php echo htmlspecialchars($member['email']); ?>">Edit</button>
-                                <a href="?delete=<?php echo $member['id']; ?>" class="btn btn-danger-custom" onclick="return confirm('Are you sure you want to delete this member?')">Delete</a>
+                                    data-id="<?php echo $user['id']; ?>"
+                                    data-name="<?php echo htmlspecialchars($user['name']); ?>"
+                                    data-email="<?php echo htmlspecialchars($user['email']); ?>"
+                                    data-role="<?php echo $user['role']; ?>">Edit</button>
+                                <?php if($user['id'] != $_SESSION['user_id']): ?>
+                                    <a href="?delete=<?php echo $user['id']; ?>" class="btn btn-danger-custom" onclick="return confirm('Are you sure you want to delete this user?')">Delete</a>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="5" class="text-center text-muted">No members found.</td>
+                        <td colspan="6" class="text-center text-muted">No users found.</td>
                     </tr>
                 <?php endif; ?>
             </tbody>
@@ -320,28 +445,36 @@ $members = $stmt->fetchAll();
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Add New Member</h5>
+                <h5 class="modal-title">Add New User</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Full Name</label>
+                        <label class="form-label">Full Name *</label>
                         <input type="text" name="name" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Email Address</label>
+                        <label class="form-label">Email Address *</label>
                         <input type="email" name="email" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Password</label>
+                        <label class="form-label">Password *</label>
                         <input type="password" name="password" class="form-control" required>
-                        <small class="text-muted">Must contain: Uppercase, Lowercase, Number, Special char, Min 8 chars</small>
+                        <small class="text-muted">Min 8 chars: Uppercase, Lowercase, Number, Special char</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Role *</label>
+                        <select name="role" class="form-select" required>
+                            <option value="member">Member</option>
+                            <option value="trainer">Trainer</option>
+                            <option value="staff">Staff</option>
+                        </select>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" name="add_user" class="btn btn-primary-custom">Add Member</button>
+                    <button type="submit" name="add_user" class="btn btn-primary-custom">Add User</button>
                 </div>
             </form>
         </div>
@@ -352,7 +485,7 @@ $members = $stmt->fetchAll();
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Edit Member</h5>
+                <h5 class="modal-title">Edit User</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST">
@@ -365,6 +498,14 @@ $members = $stmt->fetchAll();
                     <div class="mb-3">
                         <label class="form-label">Email Address</label>
                         <input type="email" name="email" id="edit_email" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Role</label>
+                        <select name="role" id="edit_role" class="form-select" required>
+                            <option value="member">Member</option>
+                            <option value="trainer">Trainer</option>
+                            <option value="staff">Staff</option>
+                        </select>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -383,16 +524,10 @@ $members = $stmt->fetchAll();
         document.getElementById('edit_user_id').value = button.getAttribute('data-id');
         document.getElementById('edit_name').value = button.getAttribute('data-name');
         document.getElementById('edit_email').value = button.getAttribute('data-email');
+        document.getElementById('edit_role').value = button.getAttribute('data-role');
     });
 </script>
-
-<footer>
-    <div class="container">
-        <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">SUPERGYM</div>
-        <p>© SuperGym Booking System. All Rights Reserved.</p>
-    </div>
-</footer>
-
+<?php include 'footer.php'; ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

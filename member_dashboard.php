@@ -28,7 +28,7 @@ $stmt = $pdo->prepare("
     FROM bookings b
     LEFT JOIN gym_sessions gs ON b.gym_session_id = gs.id
     LEFT JOIN trainer_slots ts ON b.trainer_slot_id = ts.id
-    LEFT JOIN trainers t ON ts.trainer_id = t.id
+    LEFT JOIN trainers t ON ts.trainer_id = t.trainer_id
     LEFT JOIN users u ON t.user_id = u.id
     WHERE b.member_id = ?
     ORDER BY booking_date DESC
@@ -215,6 +215,7 @@ $bookings = $stmt->fetchAll();
                 <li class="nav-item"><a class="nav-link" href="member_dashboard.php" style="color: #d6ff00 !important;">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="book_gym.php">Book Gym</a></li>
                 <li class="nav-item"><a class="nav-link" href="book_trainer.php">Book Trainer</a></li>
+                <li class="nav-item"><a class="nav-link" href="cart.php">Cart</a></li>
                 <li class="nav-item"><a class="nav-link" href="my_bookings.php">My Bookings</a></li>
                 <li class="nav-item"><a class="nav-link" href="booking_history.php">Booking History</a></li>
                 <li class="nav-item"><a class="nav-link" href="profile.php">My Account</a></li>
@@ -306,7 +307,8 @@ $bookings = $stmt->fetchAll();
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
                                     <?php endif; ?>
-                                </td ?>
+                                </td>
+                            </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
@@ -317,12 +319,7 @@ $bookings = $stmt->fetchAll();
     </div>
 </div>
 
-<footer>
-    <div class="container">
-        <div style="font-size: 1.8rem; font-weight: bold; font-style: italic; color: #d6ff00; margin-bottom: 15px;">SUPERGYM</div>
-        <p>© SuperGym Booking System. All Rights Reserved.</p>
-    </div>
-</footer>
+<?php include 'footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

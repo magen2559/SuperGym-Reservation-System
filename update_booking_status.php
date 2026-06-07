@@ -16,7 +16,7 @@ if ($_SESSION['user_role'] != 'trainer') {
 
 $user_id = $_SESSION['user_id'];
 
-$stmt = $pdo->prepare("SELECT id FROM trainers WHERE user_id = ?");
+$stmt = $pdo->prepare("SELECT trainer_id FROM trainers WHERE user_id = ?");
 $stmt->execute([$user_id]);
 $trainer = $stmt->fetch();
 
@@ -25,17 +25,19 @@ if (!$trainer) {
     exit();
 }
 
-$trainer_id = $trainer['id'];
+$trainer_id = $trainer['trainer_id'];
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['booking_id']) && isset($_POST['action'])) {
 
-    $booking_id = $_POST['booking_id'];
+    $booking_id = (int)$_POST['booking_id'];
     $action = $_POST['action'];
 
     $stmt = $pdo->prepare("
         SELECT 
-            b.id, 
-            b.status, 
+            b.id,
+            b.status,
+            b.payment_status,
+            b.trainer_slot_id,
             ts.trainer_id,
             ts.slot_date,
             ts.start_time,
@@ -45,13 +47,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['booking_id']) && isset
         FROM bookings b
         JOIN trainer_slots ts ON b.trainer_slot_id = ts.id
         JOIN users u ON b.member_id = u.id
-        WHERE b.id = ? AND ts.trainer_id = ?
+        WHERE b.id = ?
+        AND ts.trainer_id = ?
+        AND b.booking_type = 'trainer'
+        AND b.payment_status = 'paid'
     ");
     $stmt->execute([$booking_id, $trainer_id]);
     $booking = $stmt->fetch();
 
     if (!$booking) {
-        header("Location: trainer_dashboard.php?error=Booking not found");
+        header("Location: trainer_dashboard.php?error=Booking not found or payment not completed");
         exit();
     }
 
@@ -65,32 +70,38 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['booking_id']) && isset
     try {
         if ($action == 'approve') {
 
-            $stmt = $pdo->prepare("UPDATE bookings SET status = 'approved' WHERE id = ?");
+            $stmt = $pdo->prepare("
+                UPDATE bookings
+                SET status = 'approved',
+                    member_action = NULL
+                WHERE id = ?
+            ");
             $stmt->execute([$booking_id]);
 
-            $message = "Booking approved successfully!";
+            $message = "Booking approved successfully.";
 
         } elseif ($action == 'reject') {
 
             $stmt = $pdo->prepare("
-                UPDATE bookings 
+                UPDATE bookings
                 SET status = 'rejected',
-                    member_action = 'pending_choice'
+                    member_action = 'pending_choice',
+                    refund_status = 'not_requested',
+                    refund_reason = 'Trainer rejected booking'
                 WHERE id = ?
             ");
             $stmt->execute([$booking_id]);
 
             $stmt = $pdo->prepare("
-                UPDATE trainer_slots ts
-                JOIN bookings b ON ts.id = b.trainer_slot_id
-                SET ts.is_available = 1
-                WHERE b.id = ?
+                UPDATE trainer_slots
+                SET is_available = 1
+                WHERE id = ?
             ");
-            $stmt->execute([$booking_id]);
-
-            $mail = new PHPMailer(true);
+            $stmt->execute([$booking['trainer_slot_id']]);
 
             try {
+                $mail = new PHPMailer(true);
+
                 $mail->isSMTP();
                 $mail->Host = 'smtp.gmail.com';
                 $mail->SMTPAuth = true;
@@ -107,27 +118,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['booking_id']) && isset
 
                 $mail->Body = "
                     <h2>SuperGym Booking Update</h2>
-                    <p>Hello <strong>{$booking['member_name']}</strong>,</p>
-                    <p>We are sorry to inform you that your trainer booking has been rejected by the trainer.</p>
+                    <p>Hello <strong>" . htmlspecialchars($booking['member_name']) . "</strong>,</p>
+                    <p>Your trainer booking has been rejected by the trainer.</p>
                     <p><strong>Date:</strong> " . date('D, M j', strtotime($booking['slot_date'])) . "</p>
                     <p><strong>Time:</strong> " . date('g:i A', strtotime($booking['start_time'])) . " - " . date('g:i A', strtotime($booking['end_time'])) . "</p>
-                    <p>You may login to your SuperGym account and choose either:</p>
+                    <p>Please login to your SuperGym account. You can choose either:</p>
                     <ul>
                         <li>Request Refund</li>
-                        <li>Change Trainer</li>
+                        <li>Change Trainer without making another payment</li>
                     </ul>
                     <p>Thank you.</p>
                 ";
 
-                $mail->AltBody = "Your SuperGym trainer booking has been rejected. Please login to request refund or change trainer.";
+                $mail->AltBody = "Your trainer booking has been rejected. Please login to SuperGym to request refund or change trainer.";
 
                 $mail->send();
 
             } catch (Exception $e) {
-                // Booking still rejected even if email fails
+                // Email fail pun booking tetap reject
             }
 
-            $message = "Booking rejected. Email notification sent to member.";
+            $message = "Booking rejected. Member can request refund or change trainer.";
 
         } else {
             throw new Exception("Invalid action");

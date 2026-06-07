@@ -1,5 +1,13 @@
 <?php
 session_start();
+
+if (isset($_GET['redirect'])) {
+    $_SESSION['login_redirect'] = $_GET['redirect'];
+}
+if (isset($_GET['slot_id'])) {
+    $_SESSION['booking_slot_id'] = $_GET['slot_id'];
+}
+
 if (isset($_SESSION['user_id'])) {
     header("Location: dashboard.php");
     exit();
@@ -248,6 +256,13 @@ if (isset($_SESSION['user_id'])) {
             <?php endif; ?>
 
             <form action="login_process.php" method="POST">
+                <?php if(isset($_SESSION['login_redirect'])): ?>
+                    <input type="hidden" name="redirect" value="<?php echo $_SESSION['login_redirect']; ?>">
+                <?php endif; ?>
+                <?php if(isset($_SESSION['booking_slot_id'])): ?>
+                    <input type="hidden" name="slot_id" value="<?php echo $_SESSION['booking_slot_id']; ?>">
+                <?php endif; ?>
+
                 <div class="form-group">
                     <label>Email Address</label>
                     <div class="input-wrapper">
