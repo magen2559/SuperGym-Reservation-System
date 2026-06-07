@@ -10,7 +10,7 @@ if ($_SESSION['user_role'] != 'trainer') {
 
 $user_id = $_SESSION['user_id'];
 
-$stmt = $pdo->prepare("SELECT id FROM trainers WHERE user_id = ?");
+$stmt = $pdo->prepare("SELECT trainer_id FROM trainers WHERE user_id = ?");
 $stmt->execute([$user_id]);
 $trainer = $stmt->fetch();
 
@@ -19,7 +19,7 @@ if (!$trainer) {
     exit();
 }
 
-$trainer_id = $trainer['id'];
+$trainer_id = $trainer['trainer_id'];
 
 $stmt = $pdo->prepare("
     SELECT b.*, u.name as member_name, ts.slot_date, ts.start_time, ts.end_time, 
@@ -138,14 +138,14 @@ ob_end_flush();
             color: #d6ff00;
         }
         .content-card {
-            background-color: #d6ff00;
+            background-color: #1a1a1a;
             border: 1px solid #333;
             border-radius: 15px;
             padding: 25px;
             margin-bottom: 30px;
         }
         .content-card h3 {
-            color: #000;
+            color: #fff;
             margin-bottom: 20px;
             padding-bottom: 10px;
             border-bottom: 1px solid #333;

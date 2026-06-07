@@ -1,24 +1,29 @@
 <?php
 require_once 'include/db.php';
 
-$input = file_get_contents('php://input');
-parse_str($input, $data);
+$billCode = $_POST['billcode'] ?? '';
+$status = $_POST['status_id'] ?? '';
+$transaction_id = $_POST['transaction_id'] ?? '';
+$msg = $_POST['msg'] ?? '';
 
-$billCode = $data['billcode'] ?? '';
-$status = $data['status_id'] ?? '';
-$transaction_id = $data['transaction_id'] ?? '';
-$msg = $data['msg'] ?? '';
+error_log("Webhook received - billcode: $billCode, status: $status, transaction_id: $transaction_id");
 
-if ($billCode && $status == '1') {
+if (!empty($billCode) && $status == '1') {
+    
     $stmt = $pdo->prepare("
-        UPDATE bookings 
-        SET payment_status = 'paid', 
+        UPDATE bookings
+        SET payment_status = 'paid',
             payment_date = NOW(),
             transaction_id = ?
         WHERE bill_code = ?
     ");
+
     $stmt->execute([$transaction_id, $billCode]);
+    
+    error_log("Payment updated for billcode: $billCode");
 }
 
+http_response_code(200);
 echo "OK";
+exit();
 ?>

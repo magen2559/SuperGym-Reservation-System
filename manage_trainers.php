@@ -10,18 +10,7 @@ if ($_SESSION['user_role'] != 'staff') {
 $success = '';
 $error = '';
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
-$filter_specialty = isset($_GET['filter_specialty']) ? $_GET['filter_specialty'] : '';
-
-$stmt = $pdo->query("
-    SELECT DISTINCT specialty FROM trainers WHERE specialty IS NOT NULL AND specialty != ''
-    UNION SELECT 'Strength Training' as specialty
-    UNION SELECT 'Cardio Training'
-    UNION SELECT 'Yoga'
-    UNION SELECT 'HIIT'
-    UNION SELECT 'Boxing'
-    ORDER BY specialty
-");
-$specialties = $stmt->fetchAll();
+$filter_specialty = isset($_GET['filter_specialty']) ? trim($_GET['filter_specialty']) : '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_trainer'])) {
     $name = trim($_POST['name']);
@@ -123,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_trainer'])) {
 
 $query = "
     SELECT u.id, u.name, u.email, u.created_at, 
-           t.id as trainer_id, t.specialty, t.bio
+           t.trainer_id, t.specialty, t.bio
     FROM users u
     JOIN trainers t ON u.id = t.user_id
     WHERE u.role = 'trainer'
@@ -138,12 +127,12 @@ if (!empty($search)) {
     $params[] = "%$search%";
 }
 
-if (!empty($filter_specialty) && $filter_specialty != 'all') {
-    $query .= " AND t.specialty = ?";
-    $params[] = $filter_specialty;
+if (!empty($filter_specialty)) {
+    $query .= " AND t.specialty LIKE ?";
+    $params[] = "%$filter_specialty%";
 }
 
-$query .= " ORDER BY u.created_at DESC";
+$query .= " ORDER BY t.trainer_id ASC";
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $trainers = $stmt->fetchAll();
@@ -321,12 +310,18 @@ $total_trainers = $stmt->fetch()['count'];
         }
         .specialty-badge {
             display: inline-block;
-            padding: 3px 10px;
+            width: 140px;
+            padding: 5px 8px;
             border-radius: 20px;
+            margin-top: 3px;
             font-size: 11px;
             font-weight: bold;
             background-color: #d6ff00;
             color: #000;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
     </style>
 </head>
@@ -347,6 +342,7 @@ $total_trainers = $stmt->fetch()['count'];
                 <li class="nav-item"><a class="nav-link" href="manage_users.php">Users</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_trainers.php" style="color: #d6ff00 !important;">Trainers</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_bookings.php">Bookings</a></li>
+                <li class="nav-item"><a class="nav-link" href="manage_refunds.php">Refunds</a></li>
                 <li class="nav-item"><a class="nav-link" href="equipment.php">Equipment</a></li>
                 <li class="nav-item"><a class="nav-link" href="gym_capacity.php">Gym Capacity</a></li>
                 <li class="nav-item"><a class="nav-link" href="reports.php">Reports</a></li>
@@ -370,8 +366,8 @@ $total_trainers = $stmt->fetch()['count'];
         </div>
     </div>
 
-    <div class="row mb-4">
-        <div class="col-md-12">
+    <div class="row mb-4 justify-content-center">
+        <div class="col-md-4 mb-3">
             <div class="stat-card">
                 <div class="stat-number"><?php echo $total_trainers; ?></div>
                 <div class="text-muted">Total Active Trainers</div>
@@ -387,14 +383,7 @@ $total_trainers = $stmt->fetch()['count'];
             </div>
             <div class="col-md-3">
                 <label class="form-label">Filter by Specialty</label>
-                <select name="filter_specialty" class="form-select">
-                    <option value="all" <?php echo $filter_specialty == 'all' ? 'selected' : ''; ?>>All Specialties</option>
-                    <?php foreach($specialties as $spec): ?>
-                        <option value="<?php echo htmlspecialchars($spec['specialty']); ?>" <?php echo $filter_specialty == $spec['specialty'] ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($spec['specialty']); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+                <input type="text" name="filter_specialty" class="form-control" placeholder="Enter specialty..." value="<?php echo htmlspecialchars($filter_specialty); ?>">
             </div>
             <div class="col-md-2">
                 <label class="form-label">&nbsp;</label>
@@ -418,7 +407,7 @@ $total_trainers = $stmt->fetch()['count'];
         <table class="table table-dark">
             <thead>
                 <tr>
-                    <th>ID</th>
+                    <th>Trainer ID</th>
                     <th>Name</th>
                     <th>Email</th>
                     <th>Specialty</th>
@@ -431,7 +420,7 @@ $total_trainers = $stmt->fetch()['count'];
                 <?php if(count($trainers) > 0): ?>
                     <?php foreach($trainers as $trainer): ?>
                         <tr>
-                            <td><?php echo $trainer['id']; ?></td>
+                            <td><?php echo $trainer['trainer_id']; ?></td>
                             <td><?php echo htmlspecialchars($trainer['name']); ?></td>
                             <td><?php echo htmlspecialchars($trainer['email']); ?></td>
                             <td>
@@ -440,7 +429,7 @@ $total_trainers = $stmt->fetch()['count'];
                                 </span>
                             </td>
                             <td>
-                                <?php echo htmlspecialchars(substr($trainer['bio'] ?? 'No bio available', 0, 50)); ?>...
+                                <?php echo htmlspecialchars(substr($trainer['bio'] ?? 'No bio available', 0, 50)); ?>
                             </td>
                             <td><?php echo date('d M Y', strtotime($trainer['created_at'])); ?></td>
                             <td>
@@ -450,13 +439,13 @@ $total_trainers = $stmt->fetch()['count'];
                                     data-email="<?php echo htmlspecialchars($trainer['email']); ?>"
                                     data-specialty="<?php echo htmlspecialchars($trainer['specialty'] ?? ''); ?>"
                                     data-bio="<?php echo htmlspecialchars($trainer['bio'] ?? ''); ?>">Edit</button>
-                                <a href="?delete=<?php echo $trainer['id']; ?>" class="btn btn-danger-custom" onclick="return confirm('Are you sure you want to delete this trainer? This will also remove all their booked slots.')">Delete</a>
+                                <a href="?delete=<?php echo $trainer['id']; ?>" class="btn btn-danger-custom" onclick="return confirm('Are you sure you want to delete this trainer?')">Delete</a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="7" class="text-center text-muted">No trainers found.<?php echo htmlspecialchars($search); ?></td>
+                        <td colspan="7" class="text-center text-muted">No trainers found.</td>
                     </tr>
                 <?php endif; ?>
             </tbody>
@@ -487,20 +476,11 @@ $total_trainers = $stmt->fetch()['count'];
                         <small class="text-muted">Min 8 chars: Uppercase, Lowercase, Number, Special char</small>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Specialty / Role Tag</label>
-                        <select name="specialty" class="form-select">
-                            <option value="🔥 Fat Burn Training">🔥 Fat Burn Training</option>
-                            <option value="💪 Body Shaping">💪 Body Shaping</option>
-                            <option value="🧘 Yoga & Stretch">🧘 Yoga & Stretch</option>
-                            <option value="⚡ HIIT Training">⚡ HIIT Training</option>
-                            <option value="🏋️ Strength Training">🏋️ Strength Training</option>
-                            <option value="🥊 Boxing & Kickboxing">🥊 Boxing & Kickboxing</option>
-                            <option value="🏃 Cardio Training">🏃 Cardio Training</option>
-                            <option value="🎯 Functional Training">🎯 Functional Training</option>
-                        </select>
+                        <label class="form-label">Specialty</label>
+                        <input type="text" name="specialty" class="form-control" placeholder="e.g., Yoga, HIIT, Strength Training, etc.">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Bio / Description</label>
+                        <label class="form-label">Bio</label>
                         <textarea name="bio" class="form-control" rows="3" placeholder="Trainer's background, experience, and qualifications..."></textarea>
                     </div>
                 </div>
@@ -532,20 +512,11 @@ $total_trainers = $stmt->fetch()['count'];
                         <input type="email" name="email" id="edit_email" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Specialty / Role Tag</label>
-                        <select name="specialty" id="edit_specialty" class="form-select">
-                            <option value="🔥 Fat Burn Training">🔥 Fat Burn Training</option>
-                            <option value="💪 Body Shaping">💪 Body Shaping</option>
-                            <option value="🧘 Yoga & Stretch">🧘 Yoga & Stretch</option>
-                            <option value="⚡ HIIT Training">⚡ HIIT Training</option>
-                            <option value="🏋️ Strength Training">🏋️ Strength Training</option>
-                            <option value="🥊 Boxing & Kickboxing">🥊 Boxing & Kickboxing</option>
-                            <option value="🏃 Cardio Training">🏃 Cardio Training</option>
-                            <option value="🎯 Functional Training">🎯 Functional Training</option>
-                        </select>
+                        <label class="form-label">Specialty</label>
+                        <input type="text" name="specialty" id="edit_specialty" class="form-control" placeholder="e.g., Yoga, HIIT, Strength Training, etc.">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Bio / Description</label>
+                        <label class="form-label">Bio</label>
                         <textarea name="bio" id="edit_bio" class="form-control" rows="3"></textarea>
                     </div>
                 </div>

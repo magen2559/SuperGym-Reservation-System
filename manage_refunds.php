@@ -7,66 +7,76 @@ if ($_SESSION['user_role'] != 'staff') {
     exit();
 }
 
-if (isset($_GET['action']) && isset($_GET['id'])) {
-    $booking_id = $_GET['id'];
-    $action = $_GET['action'];
+$success_message = '';
+$error_message = '';
 
-    if ($action == 'approve') {
-        $stmt = $pdo->prepare("UPDATE bookings SET status = 'approved' WHERE id = ?");
-        $stmt->execute([$booking_id]);
-        $success = "Booking approved successfully!";
-    }
-
-    if ($action == 'reject') {
-        $stmt = $pdo->prepare("SELECT gym_session_id FROM bookings WHERE id = ?");
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['approve_refund'])) {
+    $booking_id = $_POST['booking_id'];
+    
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare("
+            SELECT b.*, ts.id as slot_id 
+            FROM bookings b
+            JOIN trainer_slots ts ON b.trainer_slot_id = ts.id
+            WHERE b.id = ? AND b.refund_status = 'requested'
+        ");
         $stmt->execute([$booking_id]);
         $booking = $stmt->fetch();
-
-        if ($booking && $booking['gym_session_id']) {
-            $stmt = $pdo->prepare("UPDATE gym_sessions SET current_bookings = current_bookings - 1 WHERE id = ? AND current_bookings > 0");
-            $stmt->execute([$booking['gym_session_id']]);
+        
+        if ($booking) {
+            $stmt = $pdo->prepare("
+                UPDATE bookings 
+                SET refund_status = 'approved', 
+                    payment_status = 'refunded',
+                    refund_processed_date = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([$booking_id]);
+            
+            $stmt = $pdo->prepare("
+                UPDATE trainer_slots 
+                SET is_available = 1 
+                WHERE id = ?
+            ");
+            $stmt->execute([$booking['slot_id']]);
+            
+            $pdo->commit();
+            $success_message = "Refund approved successfully!";
         }
-
-        $stmt = $pdo->prepare("UPDATE bookings SET status = 'rejected' WHERE id = ?");
-        $stmt->execute([$booking_id]);
-        $success = "Booking rejected successfully!";
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $error_message = "Error: " . $e->getMessage();
     }
-
-    header("Location: manage_bookings.php?success=" . urlencode($success));
-    exit();
 }
 
 $stmt = $pdo->prepare("
-    SELECT 
-        b.id,
-        b.booking_type,
-        b.status,
-        b.booking_date,
-        u.name AS member_name,
-        u.email AS member_email,
-        gs.session_date,
-        gs.start_time,
-        gs.end_time,
-        gs.max_capacity,
-        gs.current_bookings
+    SELECT b.*, 
+           u.name AS member_name, 
+           u.email AS member_email,
+           ts.slot_date, 
+           ts.start_time, 
+           ts.end_time,
+           trainer_user.name AS trainer_name
     FROM bookings b
     JOIN users u ON b.member_id = u.id
-    JOIN gym_sessions gs ON b.gym_session_id = gs.id
-    WHERE b.booking_type = 'gym' AND b.status = 'pending'
-    ORDER BY b.booking_date ASC
+    JOIN trainer_slots ts ON b.trainer_slot_id = ts.id
+    JOIN trainers t ON ts.trainer_id = t.trainer_id
+    JOIN users trainer_user ON t.user_id = trainer_user.id
+    WHERE b.refund_status = 'requested'
+    ORDER BY b.refund_request_date DESC
 ");
 $stmt->execute();
-$bookings = $stmt->fetchAll();
+$refunds = $stmt->fetchAll();
 
-$stmt = $pdo->query("SELECT COUNT(*) as count FROM bookings WHERE booking_type = 'gym' AND status = 'pending'");
-$pending_count = $stmt->fetch()['count'];
+$pending_count = count($refunds);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SuperGym - Manage Gym Bookings</title>
+    <title>SuperGym - Manage Refunds</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
@@ -103,18 +113,6 @@ $pending_count = $stmt->fetch()['count'];
         .nav-link:hover {
             color: #d6ff00 !important;
         }
-        .btn-primary-custom {
-            background-color: #d6ff00;
-            color: #000;
-            font-weight: bold;
-            border: none;
-            padding: 8px 20px;
-            border-radius: 10px;
-        }
-        .btn-primary-custom:hover {
-            background-color: #c0e800;
-            color: #000;
-        }
         .btn-outline-custom {
             border: 2px solid #d6ff00;
             color: #d6ff00;
@@ -128,22 +126,18 @@ $pending_count = $stmt->fetch()['count'];
             background-color: #d6ff00;
             color: #000;
         }
-        .btn-success-custom {
+        .btn-approve {
             background-color: #22c55e;
             color: #fff;
+            font-weight: bold;
             border: none;
             padding: 5px 12px;
             border-radius: 5px;
             font-size: 12px;
-            margin-right: 5px;
         }
-        .btn-danger-custom {
-            background-color: #ef4444;
+        .btn-approve:hover {
+            background-color: #16a34a;
             color: #fff;
-            border: none;
-            padding: 5px 12px;
-            border-radius: 5px;
-            font-size: 12px;
         }
         .welcome-text {
             color: #ddd;
@@ -211,8 +205,8 @@ $pending_count = $stmt->fetch()['count'];
                 <li class="nav-item"><a class="nav-link" href="staff_dashboard.php">Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_users.php">Users</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_trainers.php">Trainers</a></li>
-                <li class="nav-item"><a class="nav-link" href="manage_bookings.php" style="color: #d6ff00 !important;">Bookings</a></li>
-                <li class="nav-item"><a class="nav-link" href="manage_refunds.php">Refunds</a></li>
+                <li class="nav-item"><a class="nav-link" href="manage_bookings.php">Bookings</a></li>
+                <li class="nav-item"><a class="nav-link" href="manage_refunds.php" style="color: #d6ff00 !important;">Refunds</a></li>
                 <li class="nav-item"><a class="nav-link" href="equipment.php">Equipment</a></li>
                 <li class="nav-item"><a class="nav-link" href="gym_capacity.php">Gym Capacity</a></li>
                 <li class="nav-item"><a class="nav-link" href="reports.php">Reports</a></li>
@@ -228,61 +222,65 @@ $pending_count = $stmt->fetch()['count'];
 <div class="container my-5">
     <div class="row mb-4">
         <div class="col">
-            <h1>Manage Gym Bookings</h1>
-            <p class="text-muted">Approve or reject pending gym session requests</p>
+            <h1>Manage Refunds</h1>
+            <p class="text-muted">Review and process member refund requests</p>
         </div>
     </div>
-
+    
     <div class="row mb-4 justify-content-center">
         <div class="col-md-4 mb-3">
             <div class="stat-card">
                 <div class="stat-number"><?php echo $pending_count; ?></div>
-                <div class="stat-label">Pending Gym Bookings</div>
+                <div class="stat-label">Pending Refund Requests</div>
             </div>
         </div>
     </div>
 
-    <?php if(isset($_GET['success'])): ?>
-        <div class="alert alert-success"><?php echo htmlspecialchars($_GET['success']); ?></div>
+    <?php if($success_message): ?>
+        <div class="alert alert-success"><?php echo htmlspecialchars($success_message); ?></div>
     <?php endif; ?>
 
-    <?php if(isset($_GET['error'])): ?>
-        <div class="alert alert-danger"><?php echo htmlspecialchars($_GET['error']); ?></div>
+    <?php if($error_message): ?>
+        <div class="alert alert-danger"><?php echo htmlspecialchars($error_message); ?></div>
     <?php endif; ?>
 
     <div class="table-responsive">
-        <?php if(count($bookings) > 0): ?>
+        <?php if(count($refunds) > 0): ?>
             <table class="table table-dark">
                 <thead>
                     <tr>
                         <th>Member</th>
                         <th>Email</th>
+                        <th>Trainer</th>
                         <th>Date</th>
                         <th>Time</th>
-                        <th>Capacity</th>
-                        <th>Requested At</th>
+                        <th>Amount</th>
+                        <th>Request Date</th>
                         <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach($bookings as $booking): ?>
+                    <?php foreach($refunds as $refund): ?>
                         <tr>
-                            <td><?php echo htmlspecialchars($booking['member_name']); ?></td>
-                            <td><?php echo htmlspecialchars($booking['member_email']); ?></td>
-                            <td><?php echo date('D, M j', strtotime($booking['session_date'])); ?></td>
-                            <td><?php echo date('g:i A', strtotime($booking['start_time'])); ?> - <?php echo date('g:i A', strtotime($booking['end_time'])); ?></td>
-                            <td><?php echo $booking['current_bookings']; ?>/<?php echo $booking['max_capacity']; ?></td>
-                            <td><?php echo date('d M Y, h:i A', strtotime($booking['booking_date'])); ?></td>
+                            <td><?php echo htmlspecialchars($refund['member_name']); ?></td>
+                            <td><?php echo htmlspecialchars($refund['member_email']); ?></td>
+                            <td><?php echo htmlspecialchars($refund['trainer_name'] ?? 'N/A'); ?></td>
+                            <td><?php echo date('D, M j', strtotime($refund['slot_date'])); ?></td>
+                            <td><?php echo date('g:i A', strtotime($refund['start_time'])); ?> - <?php echo date('g:i A', strtotime($refund['end_time'])); ?></td>
+                            <td>RM<?php echo number_format($refund['payment_amount'], 2); ?></td>
+                            <td><?php echo date('d M Y, h:i A', strtotime($refund['refund_request_date'])); ?></td>
                             <td>
-                                <a href="?action=approve&id=<?php echo $booking['id']; ?>" class="btn btn-success-custom" onclick="return confirm('Approve this booking?')">✓ Approve</a>
-                                <a href="?action=reject&id=<?php echo $booking['id']; ?>" class="btn btn-danger-custom" onclick="return confirm('Reject this booking? This will free up the capacity.')">✗ Reject</a>
+                                <form method="POST" onsubmit="return confirm('Approve this refund? The trainer slot will become available again.')" style="display:inline;">
+                                    <input type="hidden" name="booking_id" value="<?php echo $refund['id']; ?>">
+                                    <button type="submit" name="approve_refund" class="btn-approve">✓ Approve</button>
+                                </form>
                             </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
         <?php else: ?>
-            <div class="alert alert-info text-center">No pending gym booking requests.</div>
+            <div class="alert alert-info text-center">No pending refund requests at this time.</div>
         <?php endif; ?>
     </div>
 </div>

@@ -73,13 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_session'])) {
     }
 }
 
-$day = $_GET['day'] ?? 'today';
-
-if ($day == 'tomorrow') {
-    $selected_date = date('Y-m-d', strtotime('+1 day'));
-} else {
-    $selected_date = date('Y-m-d');
-}
+$selected_date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
 
 $stmt = $pdo->prepare("
     SELECT gs.*, 
@@ -94,6 +88,8 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$selected_date]);
 $sessions = $stmt->fetchAll();
+
+$has_data = count($sessions) > 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -146,8 +142,8 @@ $sessions = $stmt->fetchAll();
             border-radius: 10px;
         }
         .btn-primary-custom:hover {
-            background-color: #c0e800;
-            color: #000;
+            background-color: #333333;
+            color: #ffffff;
         }
         .btn-outline-custom {
             border: 2px solid #d6ff00;
@@ -162,6 +158,19 @@ $sessions = $stmt->fetchAll();
             background-color: #d6ff00;
             color: #000;
         }
+        .btn-active {
+            background-color: #d6ff00;
+            color: #000;
+            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 10px;
+            text-decoration: none;
+            cursor: default;
+        }
+        .btn-active:hover {
+            background-color: #d6ff00;
+            color: #000;
+        }
         .btn-disabled {
             background-color: #444;
             color: #aaa;
@@ -170,46 +179,6 @@ $sessions = $stmt->fetchAll();
             border-radius: 10px;
             border: none;
             cursor: not-allowed;
-        }
-        .welcome-text {
-            color: #ddd;
-            font-size: 14px;
-            margin-left: 20px;
-            padding-left: 20px;
-            border-left: 1px solid #555;
-        }
-        .session-card {
-            background-color: #1a1a1a;
-            border: 1px solid #333;
-            border-radius: 15px;
-            transition: transform 0.3s;
-            height: 100%;
-        }
-        .session-card:hover {
-            transform: translateY(-5px);
-            border-color: #d6ff00;
-        }
-        .available-spots {
-            font-size: 12px;
-            padding: 3px 10px;
-            border-radius: 20px;
-            display: inline-block;
-        }
-        .spots-low {
-            background-color: #fde047;
-            color: #000;
-        }
-        .spots-medium {
-            background-color: #22c55e;
-            color: #000;
-        }
-        .spots-high {
-            background-color: #d6ff00;
-            color: #000;
-        }
-        .spots-full {
-            background-color: #ef4444;
-            color: #fff;
         }
         .btn-ongoing {
             background-color: #6b7280;
@@ -221,6 +190,54 @@ $sessions = $stmt->fetchAll();
             cursor: not-allowed;
             width: 100%;
             margin-top: 10px;
+        }
+        .session-card {
+            background-color: #EEF527;
+            border: 1px solid #333;
+            border-radius: 15px;
+            transition: transform 0.3s;
+            height: 100%;
+        }
+        .session-card:hover {
+            transform: translateY(-5px);
+            border-color: #ffffff;
+        }
+        .available-spots {
+            font-size: 12px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            display: inline-block;
+            font-weight: bold;
+            background-color: #ffffff;
+            color: #000000;
+            border: 1px solid #cccccc;
+        }
+        .spots-low {
+            background-color: #ffffff;
+            color: #dc2626;
+            border: 1px solid #dc2626;
+        }
+        .spots-medium {
+            background-color: #ffffff;
+            color: #ea580c;
+            border: 1px solid #ea580c;
+        }
+        .spots-high {
+            background-color: #ffffff;
+            color: #000;
+            border: 1px solid #000;
+        }
+        .spots-full {
+            background-color: #ffffff;
+            color: #6b7280;
+            border: 1px solid #6b7280;
+        }
+        .date-selector {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 25px;
         }
         footer {
             background-color: #0a0a0a;
@@ -234,6 +251,29 @@ $sessions = $stmt->fetchAll();
         }
         .text-muted {
             color: #aaa !important;
+        }
+        .session-card .card-title,
+        .session-card .card-text,
+        .session-card h4,
+        .session-card p {
+            color: #000000;
+        }
+        .session-card .text-muted {
+            color: #333333 !important;
+        }
+        .session-card .btn-book-now {
+            background-color: #000000;
+            color: #ffffff;
+            font-weight: bold;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 10px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .session-card .btn-book-now:hover {
+            background-color: #333333;
+            color: #eef527;
         }
     </style>
 </head>
@@ -268,14 +308,30 @@ $sessions = $stmt->fetchAll();
     <div class="row mb-4">
         <div class="col">
             <h1>Book Gym Session</h1>
-            <p class="text-muted">Select a time slot to book your gym session</p>
-            
-            <div class="mb-4">
-                <a href="book_gym.php?day=today" class="btn <?php echo ($day == 'today') ? 'btn-primary-custom' : 'btn-outline-custom'; ?>">Today</a>
-                <a href="book_gym.php?day=tomorrow" class="btn <?php echo ($day == 'tomorrow') ? 'btn-primary-custom' : 'btn-outline-custom'; ?>">Tomorrow</a>
+            <p class="text-muted">Select a date and time slot to book your gym session</p>
+        </div>
+    </div>
+
+    <div class="date-selector">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label">Select Date</label>
+                <input type="date" id="datePicker" class="form-control" value="<?php echo $selected_date; ?>">
+            </div>
+            <div class="col-md-3">
+                <button id="goToDate" class="btn btn-primary-custom w-100">View Sessions</button>
+            </div>
+            <div class="col-md-4">
+                <div class="d-flex gap-2 justify-content-end">
+                    <a href="?date=<?php echo date('Y-m-d'); ?>" class="btn <?php echo $selected_date == date('Y-m-d') ? 'btn-active' : 'btn-outline-custom'; ?>">Today</a>
+                    <a href="?date=<?php echo date('Y-m-d', strtotime('+1 day')); ?>" class="btn <?php echo $selected_date == date('Y-m-d', strtotime('+1 day')) ? 'btn-active' : 'btn-outline-custom'; ?>">Tomorrow</a>
+                    <a href="?date=<?php echo date('Y-m-d', strtotime('+2 day')); ?>" class="btn btn-outline-custom">+2 Days</a>
+                </div>
             </div>
         </div>
     </div>
+
+    <h3 class="mb-3">📅 Sessions for <?php echo date('D, M j, Y', strtotime($selected_date)); ?></h3>
 
     <?php if($success_message): ?>
         <div class="alert alert-success"><?php echo $success_message; ?></div>
@@ -285,8 +341,8 @@ $sessions = $stmt->fetchAll();
         <div class="alert alert-danger"><?php echo $error_message; ?></div>
     <?php endif; ?>
 
-    <?php if(count($sessions) == 0): ?>
-        <div class="alert alert-warning">No available gym sessions at the moment. Please check back later.</div>
+    <?php if(!$has_data): ?>
+        <div class="alert alert-warning">No available gym sessions for <?php echo date('D, M j, Y', strtotime($selected_date)); ?>. Please select another date.</div>
     <?php else: ?>
         <div class="row">
             <?php foreach($sessions as $session): ?>
@@ -332,7 +388,7 @@ $sessions = $stmt->fetchAll();
                             <form method="POST">
                                 <input type="hidden" name="session_id" value="<?php echo $session['id']; ?>">
                                 <?php if($available > 0): ?>
-                                    <button type="submit" name="book_session" class="btn btn-primary-custom w-100 mt-2">Book Now</button>
+                                    <button type="submit" name="book_session" class="btn-book-now">Book Now</button>
                                 <?php else: ?>
                                     <button type="button" class="btn-disabled w-100 mt-2" disabled>Fully Booked</button>
                                 <?php endif; ?>
@@ -348,5 +404,13 @@ $sessions = $stmt->fetchAll();
 <?php include 'footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.getElementById('goToDate').addEventListener('click', function() {
+        var selectedDate = document.getElementById('datePicker').value;
+        if (selectedDate) {
+            window.location.href = '?date=' + selectedDate;
+        }
+    });
+</script>
 </body>
 </html>

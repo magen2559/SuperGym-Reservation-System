@@ -74,7 +74,7 @@ $stmt = $pdo->prepare("
         ROUND(COALESCE(SUM(CASE WHEN b.status = 'approved' THEN 1 ELSE 0 END) / NULLIF(COUNT(b.id), 0) * 100, 0), 1) as approval_rate
     FROM users u
     JOIN trainers t ON u.id = t.user_id
-    LEFT JOIN trainer_slots ts ON t.id = ts.trainer_id
+    LEFT JOIN trainer_slots ts ON t.trainer_id = ts.trainer_id
     LEFT JOIN bookings b ON ts.id = b.trainer_slot_id
     WHERE u.role = 'trainer'
     GROUP BY u.id, t.specialty
@@ -294,7 +294,6 @@ if ($export == 'csv') {
             color: #d6ff00;
             margin-bottom: 20px;
             padding-bottom: 10px;
-            border-bottom: 1px solid #333;
         }
         .table-dark {
             background-color: #1a1a1a;
@@ -307,8 +306,17 @@ if ($export == 'csv') {
             text-align: center;
             vertical-align: middle;
         }
+        .table-dark td {
+            background-color: #1a1a1a;
+            color: #ddd;
+            border-color: #333;
+        }
         .table-dark th {
-            color: #d6ff00;
+            background-color: #d6ff00;
+            color: #000;
+            font-weight: bold;
+            padding: 12px;
+            border-color: #333;
         }
         .filter-bar {
             background-color: #1a1a1a;
@@ -352,6 +360,12 @@ if ($export == 'csv') {
         .text-muted {
             color: #aaa !important;
         }
+        .progress {
+            height: 8px;
+            width: 100px;
+            display: inline-block;
+            margin-right: 8px;
+        }
     </style>
 </head>
 <body>
@@ -371,6 +385,7 @@ if ($export == 'csv') {
                 <li class="nav-item"><a class="nav-link" href="manage_users.php">Users</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_trainers.php">Trainers</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_bookings.php">Bookings</a></li>
+                <li class="nav-item"><a class="nav-link" href="manage_refunds.php">Refunds</a></li>
                 <li class="nav-item"><a class="nav-link" href="equipment.php">Equipment</a></li>
                 <li class="nav-item"><a class="nav-link" href="gym_capacity.php">Gym Capacity</a></li>
                 <li class="nav-item"><a class="nav-link" href="reports.php" style="color: #d6ff00 !important;">Reports</a></li>
@@ -553,10 +568,10 @@ if ($export == 'csv') {
                         <td><?php echo $trainer['pending_count']; ?></td>
                         <td><?php echo $trainer['paid_count']; ?></td>
                         <td>
-                            <div class="progress" style="height: 8px; width: 80px;">
-                                <div class="progress-bar" style="width: <?php echo $trainer['approval_rate']; ?>%;"></div>
+                            <div class="progress" style="height: 8px; width: 120px; display: inline-block; vertical-align: middle;">
+                                <div class="progress-bar" style="width: <?php echo $trainer['approval_rate']; ?>%; background-color: <?php echo $trainer['approval_rate'] >= 80 ? '#22c55e' : ($trainer['approval_rate'] >= 50 ? '#f59e0b' : '#ef4444'); ?>;"></div>
                             </div>
-                            <span class="ms-2 small"><?php echo $trainer['approval_rate']; ?>%</span>
+                            <span style="display: inline-block; vertical-align: middle; margin-left: 8px;"><?php echo $trainer['approval_rate']; ?>%</span>
                         </td>
                     </tr>
                     <?php endforeach; ?>

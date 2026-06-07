@@ -252,6 +252,7 @@ $week_stats = $stmt->fetch();
                 <li class="nav-item"><a class="nav-link" href="manage_users.php">Users</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_trainers.php">Trainers</a></li>
                 <li class="nav-item"><a class="nav-link" href="manage_bookings.php">Bookings</a></li>
+                <li class="nav-item"><a class="nav-link" href="manage_refunds.php">Refunds</a></li>
                 <li class="nav-item"><a class="nav-link" href="equipment.php">Equipment</a></li>
                 <li class="nav-item"><a class="nav-link" href="gym_capacity.php" style="color: #d6ff00 !important;">Gym Capacity</a></li>
                 <li class="nav-item"><a class="nav-link" href="reports.php">Reports</a></li>

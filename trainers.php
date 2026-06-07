@@ -3,16 +3,16 @@ session_start();
 require_once 'include/db.php';
 
 $stmt = $pdo->prepare("
-    SELECT t.id as trainer_id, u.id as user_id, u.name as trainer_name, 
+    SELECT t.trainer_id as trainer_id, u.id as user_id, u.name as trainer_name, 
            t.specialty, t.bio,
            (SELECT COUNT(*) FROM trainer_slots 
-            WHERE trainer_id = t.id 
+            WHERE trainer_id = t.trainer_id 
             AND slot_date >= CURDATE() 
             AND is_available = 1) as available_slots
     FROM trainers t
     JOIN users u ON t.user_id = u.id
     WHERE u.role = 'trainer'
-    ORDER BY t.id
+    ORDER BY t.trainer_id
 ");
 $stmt->execute();
 $trainers = $stmt->fetchAll();
@@ -323,10 +323,10 @@ $trainers = $stmt->fetchAll();
                     <div class="trainer-card">
                         <div class="trainer-avatar"><?php echo $avatar_letter; ?></div>
                         <h3 class="trainer-name"><?php echo htmlspecialchars($trainer['trainer_name']); ?></h3>
-                        <div class="trainer-specialty"><?php echo htmlspecialchars($trainer['specialty']); ?></div>
+                        <div class="trainer-specialty"><?php echo htmlspecialchars($trainer['specialty'] ?? 'Fitness Coach'); ?></div>
                         <p class="trainer-bio"><?php echo htmlspecialchars(substr($trainer['bio'] ?? 'Certified personal trainer with years of experience.', 0, 65)); ?>...</p>
                         <div class="slot-badge <?php echo $slot_class; ?>">📅 <?php echo $slot_text; ?></div>
-                        <button class="btn-view-slots" onclick="showSlots(<?php echo $trainer['trainer_id']; ?>, '<?php echo htmlspecialchars($trainer['trainer_name']); ?>', '<?php echo htmlspecialchars($trainer['specialty']); ?>')">View Schedule →</button>
+                        <button class="btn-view-slots" onclick="showSlots(<?php echo $trainer['trainer_id']; ?>, '<?php echo htmlspecialchars($trainer['trainer_name']); ?>', '<?php echo htmlspecialchars($trainer['specialty'] ?? 'Fitness Coach'); ?>')">View Schedule →</button>
                     </div>
                 </div>
             <?php endforeach; ?>

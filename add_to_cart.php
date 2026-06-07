@@ -27,7 +27,7 @@ foreach ($booking_ids as $booking_id) {
         SELECT b.*, u.name as trainer_name, ts.slot_date, ts.start_time, ts.end_time
         FROM bookings b
         JOIN trainer_slots ts ON b.trainer_slot_id = ts.id
-        JOIN trainers t ON ts.trainer_id = t.id
+        JOIN trainers t ON ts.trainer_id = t.trainer_id
         JOIN users u ON t.user_id = u.id
         WHERE b.id = ? AND b.member_id = ? AND b.booking_type = 'trainer' 
           AND b.payment_status != 'paid' AND b.status = 'approved'

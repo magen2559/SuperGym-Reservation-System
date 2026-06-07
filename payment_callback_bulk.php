@@ -2,6 +2,16 @@
 session_start();
 require_once 'include/db.php';
 
+$is_production = false;  // change to true
+
+if ($is_production) {
+    $userSecretKey = "uj2klw22-20bs-jb06-y8do-nks642kkzt25";
+    $api_url = 'https://toyyibpay.com/index.php/api/getBillTransactions';
+} else {
+    $userSecretKey = "rxgtzxfu-4awp-v5jj-0jcz-fc8t5uxtsk9h";
+    $api_url = 'https://dev.toyyibpay.com/index.php/api/getBillTransactions';
+}
+
 $status = isset($_GET['status']) ? $_GET['status'] : '';
 
 if ($status == 'success' && isset($_SESSION['bulk_payment'])) {
@@ -11,8 +21,6 @@ if ($status == 'success' && isset($_SESSION['bulk_payment'])) {
     $booking_ids = $bulk_payment['booking_ids'];
     $total_amount = $bulk_payment['total_amount'];
     
-    $userSecretKey = "rxgtzxfu-4awp-v5jj-0jcz-fc8t5uxtsk9h";
-    
     $statusData = array(
         'userSecretKey' => $userSecretKey,
         'billCode' => $bill_code
@@ -20,12 +28,20 @@ if ($status == 'success' && isset($_SESSION['bulk_payment'])) {
     
     $curl = curl_init();
     curl_setopt($curl, CURLOPT_POST, 1);
-    curl_setopt($curl, CURLOPT_URL, 'https://dev.toyyibpay.com/index.php/api/getBillTransactions');
+    curl_setopt($curl, CURLOPT_URL, $api_url);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($statusData));
     
     $result = curl_exec($curl);
+    $curl_error = curl_error($curl);
     curl_close($curl);
+    
+    if ($curl_error) {
+        error_log("cURL Error in payment_callback_bulk: " . $curl_error);
+        $_SESSION['payment_error'] = "Payment verification failed. Please contact support.";
+        header("Location: cart.php");
+        exit();
+    }
     
     $transactions = json_decode($result, true);
     

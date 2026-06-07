@@ -9,7 +9,7 @@ if ($_SESSION['user_role'] != 'trainer') {
 
 $user_id = $_SESSION['user_id'];
 
-$stmt = $pdo->prepare("SELECT id FROM trainers WHERE user_id = ?");
+$stmt = $pdo->prepare("SELECT trainer_id FROM trainers WHERE user_id = ?");
 $stmt->execute([$user_id]);
 $trainer = $stmt->fetch();
 
@@ -21,7 +21,7 @@ if (!$trainer) {
     $stmt->execute([$user_id]);
     $trainer_id = $pdo->lastInsertId();
 } else {
-    $trainer_id = $trainer['id'];
+    $trainer_id = $trainer['trainer_id'];
 }
 
 $stmt = $pdo->prepare("

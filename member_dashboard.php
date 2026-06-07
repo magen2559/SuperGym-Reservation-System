@@ -28,7 +28,7 @@ $stmt = $pdo->prepare("
     FROM bookings b
     LEFT JOIN gym_sessions gs ON b.gym_session_id = gs.id
     LEFT JOIN trainer_slots ts ON b.trainer_slot_id = ts.id
-    LEFT JOIN trainers t ON ts.trainer_id = t.id
+    LEFT JOIN trainers t ON ts.trainer_id = t.trainer_id
     LEFT JOIN users u ON t.user_id = u.id
     WHERE b.member_id = ?
     ORDER BY booking_date DESC
@@ -191,7 +191,7 @@ $bookings = $stmt->fetchAll();
         }
         .card .btn-primary-custom {
             background-color: #000;
-            color: #EEF527;
+            color: #fff;
         }
         .card .btn-primary-custom:hover {
             background-color: #333;

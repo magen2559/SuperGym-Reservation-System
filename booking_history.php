@@ -32,7 +32,7 @@ $stmt = $pdo->prepare("
     FROM bookings b
     LEFT JOIN gym_sessions gs ON b.gym_session_id = gs.id
     LEFT JOIN trainer_slots ts ON b.trainer_slot_id = ts.id
-    LEFT JOIN trainers t ON ts.trainer_id = t.id
+    LEFT JOIN trainers t ON ts.trainer_id = t.trainer_id
     LEFT JOIN users u ON t.user_id = u.id
     WHERE b.member_id = ? 
       AND (b.status IN ('cancelled', 'rejected', 'completed') 
@@ -88,16 +88,16 @@ $past_bookings = $stmt->fetchAll();
             color: #d6ff00 !important;
         }
         .btn-primary-custom {
-            background-color: #d6ff00;
-            color: #000;
+            background-color: #000000;
+            color: #ffffff;
             font-weight: bold;
             border: none;
             padding: 8px 20px;
             border-radius: 10px;
         }
         .btn-primary-custom:hover {
-            background-color: #c0e800;
-            color: #000;
+            background-color: #333333;
+            color: #ffffff;
         }
         .btn-outline-custom {
             border: 2px solid #d6ff00;
@@ -119,27 +119,32 @@ $past_bookings = $stmt->fetchAll();
             padding-left: 20px;
             border-left: 1px solid #555;
         }
-        .table-dark {
-            background-color: #1a1a1a;
+        .table-custom {
+            background-color: #fff;
             border-radius: 10px;
             overflow: hidden;
         }
-        .table-dark td, 
-        .table-dark th {
-            border-color: #333;
-            color: #ddd;
+        .table-custom td, 
+        .table-custom th {
             text-align: center;
             vertical-align: middle;
-            padding: 12px 8px;
+            padding: 12px;
         }
-        .table-dark th {
-            color: #d6ff00;
+        .table-custom th {
+            background-color: #f8f9fa;
+            color: #000;
+            font-weight: bold;
         }
-        .status-approved { color: #86efac; }
-        .status-pending { color: #fde047; }
-        .status-rejected { color: #fca5a5; }
-        .status-cancelled { color: #9ca3af; }
-        .status-completed { color: #60a5fa; }
+        .table-custom td {
+            background-color: #fff;
+            color: #000;
+            border-color: #dee2e6;
+        }
+        .status-approved { color: #16a34a; font-weight: bold; }
+        .status-pending { color: #ea580c; font-weight: bold; }
+        .status-rejected { color: #dc2626; font-weight: bold; }
+        .status-cancelled { color: #6b7280; font-weight: bold; }
+        .status-completed { color: #2563eb; font-weight: bold; }
         .paid-badge {
             background-color: #22c55e;
             color: #fff;
@@ -150,8 +155,8 @@ $past_bookings = $stmt->fetchAll();
             display: inline-block;
         }
         .unpaid-badge {
-            background-color: #d6ff00;
-            color: #000;
+            background-color: #6b7280;
+            color: #fff;
             padding: 5px 12px;
             border-radius: 20px;
             font-size: 12px;
@@ -169,7 +174,6 @@ $past_bookings = $stmt->fetchAll();
             color: #000;
             margin-bottom: 20px;
             padding-bottom: 10px;
-            border-bottom: 1px solid #ccc;
         }
         footer {
             background-color: #0a0a0a;
@@ -184,10 +188,8 @@ $past_bookings = $stmt->fetchAll();
         .text-muted {
             color: #aaa !important;
         }
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: #aaa;
+        .content-card .text-muted {
+            color: #555 !important;
         }
     </style>
 </head>
@@ -230,7 +232,7 @@ $past_bookings = $stmt->fetchAll();
         <h3>📜 Past Bookings</h3>
         <?php if(count($past_bookings) > 0): ?>
             <div class="table-responsive">
-                <table class="table table-dark">
+                <table class="table table-custom">
                     <thead>
                         <tr>
                             <th>Type</th>
@@ -245,9 +247,9 @@ $past_bookings = $stmt->fetchAll();
                         <?php foreach($past_bookings as $booking): ?>
                             <?php
                             if ($booking['booking_type'] == 'gym') {
-                                $type_display = 'Gym Session';
+                                $type_display = '🏋️ Gym Session';
                             } else {
-                                $type_display = $booking['activity_type'] ?? 'Personal Trainer';
+                                $type_display = '👨‍🏫 ' . ($booking['activity_type'] ?? 'Personal Trainer');
                             }
                             ?>
                             <tr>
@@ -273,10 +275,7 @@ $past_bookings = $stmt->fetchAll();
                 </table>
             </div>
         <?php else: ?>
-            <div class="empty-state">
-                <p>No booking history found.</p>
-                <a href="book_gym.php" class="btn btn-primary-custom mt-2">Book Your First Session</a>
-            </div>
+            <p class="text-muted" style="text-align: left;">No booking history found.</p>
         <?php endif; ?>
     </div>
 </div>

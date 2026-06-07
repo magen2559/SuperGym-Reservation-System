@@ -11,7 +11,7 @@ $user_id = $_SESSION['user_id'];
 $success = '';
 $error = '';
 
-$stmt = $pdo->prepare("SELECT id FROM trainers WHERE user_id = ?");
+$stmt = $pdo->prepare("SELECT trainer_id FROM trainers WHERE user_id = ?");
 $stmt->execute([$user_id]);
 $trainer = $stmt->fetch();
 
@@ -20,7 +20,7 @@ if (!$trainer) {
     $stmt->execute([$user_id]);
     $trainer_id = $pdo->lastInsertId();
 } else {
-    $trainer_id = $trainer['id'];
+   $trainer_id = $trainer['trainer_id'];
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_slot'])) {
