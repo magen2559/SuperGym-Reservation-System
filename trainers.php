@@ -4,7 +4,7 @@ require_once 'include/db.php';
 
 $stmt = $pdo->prepare("
     SELECT t.trainer_id as trainer_id, u.id as user_id, u.name as trainer_name, 
-           t.specialty, t.bio,
+           t.specialty,
            (SELECT COUNT(*) FROM trainer_slots 
             WHERE trainer_id = t.trainer_id 
             AND slot_date >= CURDATE() 
@@ -54,6 +54,7 @@ $trainers = $stmt->fetchAll();
         .nav-link {
             color: #aaa;
             font-weight: bold;
+            padding: 8px 16px;
             text-transform: uppercase;
         }
         .nav-link:hover {
@@ -129,19 +130,15 @@ $trainers = $stmt->fetchAll();
             margin-bottom: 4px;
         }
         .trainer-specialty {
-            font-size: 0.75rem;
-            color: #fff;
-            background-color: rgba(214, 255, 0, 0.15);
+            font-size: 0.65rem;
+            font-weight: bold;
+            color: #000;
+            background-color: #d6ff00;
             display: inline-block;
-            padding: 3px 10px;
+            padding: 5px 15px;
             border-radius: 20px;
+            margin-top: 8px;
             margin-bottom: 10px;
-        }
-        .trainer-bio {
-            color: #aaa;
-            font-size: 0.75rem;
-            margin: 8px 0;
-            line-height: 1.4;
         }
         .slot-badge {
             display: inline-block;
@@ -159,14 +156,14 @@ $trainers = $stmt->fetchAll();
             color: #fff;
         }
         .btn-view-slots {
-            background-color: #d6ff00;
+            background-color: #eef527;
             color: #000;
             font-weight: bold;
             border: none;
             padding: 6px 20px;
             border-radius: 8px;
             font-size: 0.75rem;
-            margin-top: 12px;
+            margin-top: 7px;
             transition: all 0.3s;
             text-decoration: none;
             display: inline-block;
@@ -286,7 +283,7 @@ $trainers = $stmt->fetchAll();
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" href="classes.php">Classes</a></li>
+                <li class="nav-item"><a class="nav-link" href="classes.php">Gym Sessions</a></li>
                 <li class="nav-item"><a class="nav-link" href="trainers.php" style="color: #d6ff00 !important;">Trainers</a></li>
             </ul>
             <div class="ms-4">
@@ -324,7 +321,6 @@ $trainers = $stmt->fetchAll();
                         <div class="trainer-avatar"><?php echo $avatar_letter; ?></div>
                         <h3 class="trainer-name"><?php echo htmlspecialchars($trainer['trainer_name']); ?></h3>
                         <div class="trainer-specialty"><?php echo htmlspecialchars($trainer['specialty'] ?? 'Fitness Coach'); ?></div>
-                        <p class="trainer-bio"><?php echo htmlspecialchars(substr($trainer['bio'] ?? 'Certified personal trainer with years of experience.', 0, 65)); ?>...</p>
                         <div class="slot-badge <?php echo $slot_class; ?>">📅 <?php echo $slot_text; ?></div>
                         <button class="btn-view-slots" onclick="showSlots(<?php echo $trainer['trainer_id']; ?>, '<?php echo htmlspecialchars($trainer['trainer_name']); ?>', '<?php echo htmlspecialchars($trainer['specialty'] ?? 'Fitness Coach'); ?>')">View Schedule →</button>
                     </div>

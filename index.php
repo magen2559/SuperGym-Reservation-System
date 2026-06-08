@@ -39,6 +39,7 @@ session_start();
             color: #aaa;
             font-weight: bold;
             text-transform: uppercase;
+            padding: 8px 16px;
         }
         .nav-link:hover {
             color: #d6ff00 !important;
@@ -54,7 +55,7 @@ session_start();
             color: #000;
             font-weight: bold;
             border: none;
-            padding: 10px 25px;
+            padding: 8px 20px;
             border-radius: 10px;
         }
         .btn-primary-custom:hover {
@@ -65,7 +66,7 @@ session_start();
             border: 2px solid #d6ff00;
             color: #d6ff00;
             font-weight: bold;
-            padding: 10px 25px;
+            padding: 8px 20px;
             border-radius: 10px;
             text-decoration: none;
         }
@@ -153,7 +154,7 @@ session_start();
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" href="classes.php">Classes</a></li>
+                <li class="nav-item"><a class="nav-link" href="classes.php">Gym Sessions</a></li>
                 <li class="nav-item"><a class="nav-link" href="trainers.php">Trainers</a></li>
             </ul>
             <div class="ms-4">

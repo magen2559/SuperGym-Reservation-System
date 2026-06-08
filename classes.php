@@ -25,7 +25,7 @@ $has_data = count($sessions) > 0;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SuperGym - Classes & Schedules</title>
+    <title>SuperGym - Gym Sessions</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
@@ -58,6 +58,7 @@ $has_data = count($sessions) > 0;
             color: #aaa;
             font-weight: bold;
             text-transform: uppercase;
+            padding: 8px 16px;
         }
         .nav-link:hover {
             color: #d6ff00 !important;
@@ -115,14 +116,14 @@ $has_data = count($sessions) > 0;
             width: 100%;
             margin-top: 10px;
         }
-        .class-card {
+        .session-card {
             background-color: #1a1a1a;
             border: 1px solid #333;
             border-radius: 15px;
             transition: transform 0.3s;
             height: 100%;
         }
-        .class-card:hover {
+        .session-card:hover {
             transform: translateY(-5px);
             border-color: #d6ff00;
         }
@@ -176,7 +177,7 @@ $has_data = count($sessions) > 0;
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" href="classes.php" style="color: #d6ff00 !important;">Classes</a></li>
+                <li class="nav-item"><a class="nav-link" href="classes.php" style="color: #d6ff00 !important;">Gym Sessions</a></li>
                 <li class="nav-item"><a class="nav-link" href="trainers.php">Trainers</a></li>
             </ul>
             <div class="ms-4">
@@ -194,8 +195,8 @@ $has_data = count($sessions) > 0;
 
 <div class="hero-small">
     <div class="container">
-        <h1>Our Classes</h1>
-        <p class="lead">Explore our gym sessions and find the perfect time for your workout</p>
+        <h1>Gym Sessions</h1>
+        <p class="lead">Book your gym time slots and workout at your convenience</p>
     </div>
 </div>
 
@@ -207,7 +208,7 @@ $has_data = count($sessions) > 0;
                 <input type="date" id="datePicker" class="form-control" value="<?php echo $selected_date; ?>">
             </div>
             <div class="col-md-3">
-                <button id="goToDate" class="btn btn-primary-custom w-100">View Classes</button>
+                <button id="goToDate" class="btn btn-primary-custom w-100">View Sessions</button>
             </div>
             <div class="col-md-4">
                 <div class="d-flex gap-2 justify-content-end">
@@ -219,10 +220,10 @@ $has_data = count($sessions) > 0;
         </div>
     </div>
 
-    <h3 class="mb-3">📅 Classes for <?php echo date('D, M j, Y', strtotime($selected_date)); ?></h3>
+    <h3 class="mb-3">📅 Sessions for <?php echo date('D, M j, Y', strtotime($selected_date)); ?></h3>
 
     <?php if(!$has_data): ?>
-        <div class="alert alert-warning">No classes available for <?php echo date('D, M j, Y', strtotime($selected_date)); ?>. Please select another date.</div>
+        <div class="alert alert-warning">No sessions available for <?php echo date('D, M j, Y', strtotime($selected_date)); ?>. Please select another date.</div>
     <?php else: ?>
         <div class="row">
             <?php foreach($sessions as $session): ?>
@@ -253,7 +254,7 @@ $has_data = count($sessions) > 0;
                 }
                 ?>
                 <div class="col-md-4 mb-4">
-                    <div class="class-card p-4">
+                    <div class="session-card p-4">
                         <div class="d-flex justify-content-between align-items-start mb-3">
                             <div>
                                 <h4><?php echo date('D, M j', strtotime($session['session_date'])); ?></h4>
@@ -273,7 +274,7 @@ $has_data = count($sessions) > 0;
                                 <?php endif; ?>
                             <?php else: ?>
                                 <div class="text-center mt-2">
-                                    <a href="register.php" class="btn btn-primary-custom w-100">Join Membership to Book</a>
+                                    <a href="register.php" class="btn btn-primary-custom w-100">Join to Book</a>
                                     <small class="text-muted d-block mt-2">Register as a member to book this session</small>
                                 </div>
                             <?php endif; ?>
